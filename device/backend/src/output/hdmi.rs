@@ -4,7 +4,7 @@ use gstreamer_app::AppSrc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use super::decoded::{SharedDecoder, Subscription};
 use super::display::{Display, ModeInfo};
@@ -67,6 +67,8 @@ struct State {
     /// The look failed on this device: shown without it until its settings
     /// change
     look_failed: bool,
+    /// When the output last had to be started again after breaking
+    recovered_at: Option<Instant>,
 }
 
 pub struct GstPlayer {
@@ -94,6 +96,7 @@ impl GstPlayer {
                 display: None,
                 running: None,
                 look_failed: false,
+                recovered_at: None,
             }),
         });
         // Watching before the first look, so a screen plugged in meanwhile
@@ -111,7 +114,7 @@ impl GstPlayer {
             let mut last_rendered: u64 = 0;
             loop {
                 thread::sleep(Duration::from_secs(1));
-                stats.look_fallback();
+                stats.watchdog();
                 // Also catches the video changing size, e.g. 16:9 to 4:3
                 stats.refresh_logo();
                 let Some(sink) = stats.sink() else {
@@ -142,21 +145,33 @@ impl GstPlayer {
         self.show(&mut st)
     }
 
-    /// The GPU couldn't grade: back to the plain picture rather than none
-    fn look_fallback(&self) {
+    /// A pipeline that broke while running is started again on a freshly
+    /// set up screen; a look that keeps breaking is dropped for the plain
+    /// picture rather than none
+    fn watchdog(&self) {
         let mut st = self.state.lock().unwrap();
-        let failed = st
+        let Some(look) = st
             .running
             .as_ref()
-            .is_some_and(|r| r.look && r.failed.load(Ordering::Relaxed));
-        if !failed {
+            .filter(|r| r.failed.load(Ordering::Relaxed))
+            .map(|r| r.look)
+        else {
             return;
+        };
+        let again = st
+            .recovered_at
+            .is_some_and(|t| t.elapsed() < Duration::from_secs(30));
+        if look && again {
+            eprintln!("[hdmi] the look failed on the GPU again; showing the picture without it");
+            st.look_failed = true;
+        } else {
+            eprintln!("[hdmi] the output broke; starting it again");
         }
-        eprintln!("[hdmi] the look failed on the GPU; showing the picture without it");
-        st.look_failed = true;
+        st.recovered_at = Some(Instant::now());
         if let Some(r) = st.running.take() {
             r.stop();
         }
+        st.display = None;
         if let Err(e) = self.show(&mut st) {
             eprintln!("[hdmi] {e}");
         }
@@ -249,6 +264,23 @@ impl GstPlayer {
             r.stop();
         }
 
+        // Swapping one pipeline for another on the same screen sometimes
+        // leaves the display in a state the new one can't start in ("Element
+        // failed to change its state"); setting the screen up afresh, as a
+        // change of resolution does, always brings it back
+        match self.start(st, cfg, look) {
+            Ok(()) => Ok(()),
+            Err(e) => {
+                eprintln!("[hdmi] {e}; setting the screen up afresh");
+                st.display = None;
+                thread::sleep(Duration::from_millis(300));
+                self.start(st, cfg, look)
+            }
+        }
+    }
+
+    /// Opens the screen if it isn't yet, and starts a pipeline on it
+    fn start(&self, st: &mut State, cfg: &DisplaySettings, look: bool) -> Result<(), String> {
         let fresh = st.display.is_none();
         if fresh {
             let Some(display) = Display::open()? else {

@@ -100,6 +100,7 @@ export class Grader {
   #lut: WebGLTexture;
   #lutSize = 2;
   #hasLut = false;
+  #uniforms = new Map<string, WebGLUniformLocation | null>();
 
   constructor(canvas: HTMLCanvasElement) {
     const gl = canvas.getContext("webgl", {
@@ -191,8 +192,11 @@ export class Grader {
     gl.bindTexture(gl.TEXTURE_2D, this.#video);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
 
-    const p = this.#program;
-    const u = (name: string) => gl.getUniformLocation(p, name);
+    const u = (name: string) => {
+      if (!this.#uniforms.has(name))
+        this.#uniforms.set(name, gl.getUniformLocation(this.#program, name));
+      return this.#uniforms.get(name)!;
+    };
     const d = dewarpUniforms(display.dewarp);
     const graded = display.look.enabled && this.#hasLut;
     gl.uniform1f(u("size"), this.#lutSize);

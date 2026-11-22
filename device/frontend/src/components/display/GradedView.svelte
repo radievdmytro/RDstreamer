@@ -20,6 +20,7 @@
   let error = $state<string | null>(null);
   let showing = $state(false);
   let frame = 0;
+  let lutVersion = 0;
 
   $effect(() => {
     if (!canvas || grader) return;
@@ -29,10 +30,20 @@
       error = e instanceof Error ? e.message : String(e);
       return;
     }
+    // Drawn for each new picture, and again when a slider moves; nothing
+    // while the tab is in the background
+    let drawn: unknown = null;
     const loop = () => {
-      const v = video();
-      showing = !!(grader && v && grader.draw(v, display, split));
       frame = requestAnimationFrame(loop);
+      if (document.hidden) return;
+      const v = video();
+      const key =
+        v &&
+        `${v.currentTime}|${JSON.stringify(display)}|${split}|${lutVersion}`;
+      if (key === drawn) return;
+      drawn = key;
+      showing = !!(grader && v && grader.draw(v, display, split));
+      if (!showing) drawn = null;
     };
     frame = requestAnimationFrame(loop);
   });
@@ -44,7 +55,11 @@
     if (!grader || !on) return;
     let current = true;
     fetchLut(id)
-      .then((lut) => current && grader?.setLut(lut))
+      .then((lut) => {
+        if (!current) return;
+        grader?.setLut(lut);
+        lutVersion++;
+      })
       .catch(() => current && grader?.setLut(null));
     return () => {
       current = false;
