@@ -1,0 +1,136 @@
+name: Build RDstreamer
+
+# Actions → Build RDstreamer → Run workflow. Builds the package and the SD
+# card image from this branch, unsigned, and attaches both to a GitHub
+# release (or, with "release" unticked, to the run as artifacts)
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: Build the SD card image too (about 30-60 minutes)
+        type: boolean
+        default: true
+      release:
+        description: Publish as a GitHub release (files stay downloadable)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Package
+    runs-on: ubuntu-24.04-arm
+    container: debian:trixie
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Install build tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates curl git xz-utils build-essential dpkg-dev \
+            pkg-config openssl python3 \
+            libglib2.0-dev libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev libgstrtspserver-1.0-dev
+
+      - uses: actions/checkout@v7
+
+      - name: Version
+        id: version
+        run: |
+          crate=$(sed -n 's/^version = "\(.*\)"/\1/p' device/backend/Cargo.toml | head -1)
+          echo "version=$crate-rd.$(date -u +%Y%m%d)" >>"$GITHUB_OUTPUT"
+
+      - uses: jdx/mise-action@v5
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: device/backend
+          cache-bin: true
+      - name: Install cargo-deb
+        run: command -v cargo-deb || cargo install cargo-deb --locked
+
+      - name: Test the backend
+        run: mise run backend:test
+
+      - name: Build the package
+        run: |
+          mise run frontend:install
+          mise run device:deb
+          ls -l device/backend/target/debian/*.deb
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: package
+          path: device/backend/target/debian/*.deb
+          if-no-files-found: error
+          retention-days: 30
+
+  image:
+    name: SD card image
+    needs: package
+    if: inputs.image
+    # pi-gen runs in Docker; on an arm64 runner it builds natively
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: package
+          path: package
+
+      - name: Make room
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+            /usr/local/.ghcup /opt/hostedtoolcache/CodeQL || true
+          sudo docker image prune --all --force || true
+          df -h /
+
+      - name: Build the image
+        run: image/build.sh "$(ls package/*.deb)"
+
+      - name: Name and check it
+        run: |
+          src=$(ls image/deploy/*.img.xz | head -1)
+          dst="image/deploy/rdstreamer-${{ needs.package.outputs.version }}.img.xz"
+          mv "$src" "$dst"
+          xz --test "$dst"
+          ls -lh "$dst"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: image
+          path: image/deploy/rdstreamer-*.img.xz
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+  release:
+    name: Publish
+    needs: [package, image]
+    if: always() && inputs.release && needs.package.result == 'success' && needs.image.result != 'failure'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: assets
+          merge-multiple: true
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: rd-${{ needs.package.outputs.version }}-${{ github.run_number }}
+        run: |
+          cd assets
+          sha256sum * >SHA256SUMS
+          cat SHA256SUMS
+          gh release create "$TAG" * \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "RDstreamer ${{ needs.package.outputs.version }}" \
+            --notes "RDstreamer, built from ${{ github.sha }}. Write the .img.xz to a microSD card with Raspberry Pi Imager (Use custom). Unsigned: the web interface's updater only accepts official YStreamer releases."
