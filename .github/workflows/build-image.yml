@@ -1,8 +1,10 @@
 name: Build RDstreamer
 
 # Actions → Build RDstreamer → Run workflow. Builds the package and the SD
-# card image from this branch, unsigned, and attaches both to a GitHub
-# release (or, with "release" unticked, to the run as artifacts)
+# card image from this branch and attaches both to a GitHub release (or,
+# with "release" unticked, to the run as artifacts). A name starting with a
+# version number ("1.3 · ...") makes a signed release that devices update to
+# from the web interface
 on:
   workflow_dispatch:
     inputs:
@@ -15,7 +17,7 @@ on:
         type: boolean
         default: true
       name:
-        description: "Release name, e.g. 1.1 · LUT + Dewarp (empty: the version and branch)"
+        description: "Release name starting with the version, e.g. 1.3 · Updates (no number: a test build devices won't update to)"
         required: false
       notes:
         description: What this release has, in a line (optional)
@@ -31,6 +33,7 @@ jobs:
     container: debian:trixie
     outputs:
       version: ${{ steps.version.outputs.version }}
+      updatable: ${{ steps.version.outputs.updatable }}
     steps:
       - name: Install build tools
         run: |
@@ -45,9 +48,23 @@ jobs:
 
       - name: Version
         id: version
+        env:
+          NAME: ${{ inputs.name }}
         run: |
-          crate=$(sed -n 's/^version = "\(.*\)"/\1/p' device/backend/Cargo.toml | head -1)
-          echo "version=$crate-rd.$(date -u +%Y%m%d)" >>"$GITHUB_OUTPUT"
+          # A name starting with a number ("1.3 · ...") is that version: the
+          # package gets it, and devices compare it to offer the update
+          short=$(printf '%s' "$NAME" | awk '{print $1}')
+          if printf '%s' "$short" | grep -Eq '^[0-9]+(\.[0-9]+){0,2}$'; then
+            semver=$(printf '%s' "$short" | awk -F. '{printf "%d.%d.%d", $1, $2, $3}')
+            sed -i "0,/^version = \".*\"/s//version = \"$semver\"/" device/backend/Cargo.toml
+            grep -m1 '^version' device/backend/Cargo.toml
+            echo "version=$semver" >>"$GITHUB_OUTPUT"
+            echo "updatable=true" >>"$GITHUB_OUTPUT"
+          else
+            crate=$(sed -n 's/^version = "\(.*\)"/\1/p' device/backend/Cargo.toml | head -1)
+            echo "version=$crate-rd.$(date -u +%Y%m%d)" >>"$GITHUB_OUTPUT"
+            echo "updatable=false" >>"$GITHUB_OUTPUT"
+          fi
 
       - uses: jdx/mise-action@v5
       - uses: Swatinem/rust-cache@v2
@@ -70,10 +87,35 @@ jobs:
           mise run device:deb
           ls -l device/backend/target/debian/*.deb
 
+      # For the web interface's updater: it installs only packages signed
+      # with the private half of device/packaging/update-key.pub
+      - name: Sign the package
+        if: steps.version.outputs.updatable == 'true'
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          [ -n "$UPDATE_SIGNING_KEY" ] || { echo "::error::Add the UPDATE_SIGNING_KEY secret (Settings → Secrets and variables → Actions) to sign updates."; exit 1; }
+          deb=$(ls device/backend/target/debian/*.deb)
+          key="$RUNNER_TEMP/update-key.pem"
+          trap 'rm -f "$key"' EXIT
+          (umask 077; printf '%s\n' "$UPDATE_SIGNING_KEY" >"$key")
+          YSTREAMER_SIGNING_KEY="$key" device/packaging/sign.sh "$deb"
+          # Checked against the key the devices have
+          dir=$(mktemp -d)
+          {
+            printf '\060\052\060\005\006\003\053\145\160\003\041\000'
+            base64 -d device/packaging/update-key.pub
+          } >"$dir/key.der"
+          openssl pkey -pubin -inform DER -in "$dir/key.der" -out "$dir/key.pem"
+          base64 -d "$deb.sig" >"$dir/signature"
+          openssl pkeyutl -verify -pubin -inkey "$dir/key.pem" -rawin -in "$deb" -sigfile "$dir/signature"
+
       - uses: actions/upload-artifact@v7
         with:
           name: package
-          path: device/backend/target/debian/*.deb
+          path: |
+            device/backend/target/debian/*.deb
+            device/backend/target/debian/*.deb.sig
           if-no-files-found: error
           retention-days: 30
 
@@ -161,10 +203,26 @@ jobs:
           {
             [ -n "$NOTES" ] && printf '%s\n\n' "$NOTES"
             printf 'Branch `%s`, commit %s.\n\n' "$BRANCH" "${{ github.sha }}"
-            printf '%s\n' "Write the .img.xz to a microSD card with Raspberry Pi Imager (Use custom). Unsigned: the web interface's updater only accepts official YStreamer releases."
+            printf '%s\n' "Write the .img.xz to a microSD card with Raspberry Pi Imager (Use custom). Or install the .deb from System → Update: devices with RDstreamer 1.3 or newer find and install signed releases by themselves."
           } >../notes.md
+          # What devices look for: the newest release's manifest.json
+          extra=()
+          if [ "${{ needs.package.outputs.updatable }}" = true ]; then
+            deb=$(ls *.deb)
+            python3 - "$VERSION" "https://github.com/${{ github.repository }}/releases/download/$tag/$deb" "$(cat "$deb.sig")" "${NOTES:-$NAME}" >manifest.json <<'PY'
+          import json, sys
+          version, url, signature, notes = sys.argv[1:]
+          json.dump({"version": version, "notes": notes,
+                     "packages": {"arm64": {"url": url, "signature": signature}}}, sys.stdout, indent=2)
+          PY
+            cat manifest.json
+          else
+            # Without a version number devices couldn't tell it's newer: kept
+            # off "latest", where they look
+            extra+=(--prerelease)
+          fi
           gh release create "$tag" * \
             --repo "${{ github.repository }}" \
             --target "${{ github.sha }}" \
             --title "$title" \
-            --notes-file ../notes.md
+            --notes-file ../notes.md "${extra[@]}"

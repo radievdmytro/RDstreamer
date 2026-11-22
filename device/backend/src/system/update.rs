@@ -12,9 +12,10 @@ use crate::settings::SettingsStore;
 
 /// The private half signs releases and never comes near the repository
 const PUBLIC_KEY: &str = include_str!("../../../packaging/update-key.pub");
-/// Ours rather than the host of the day, since devices in the field keep
-/// asking here whatever the releases move to
-const MANIFEST_URL: &str = "https://ystreamer.yarosfpv.com/update/manifest.json";
+/// RDstreamer's newest release on GitHub, signed with its own key: devices
+/// running RDstreamer update from the fork, not from YStreamer
+const MANIFEST_URL: &str =
+    "https://github.com/radievdmytro/RDstreamer/releases/latest/download/manifest.json";
 /// Points a test at a release served from somewhere else
 const MANIFEST_URL_ENV: &str = "YSTREAMER_UPDATE_URL";
 const MAX_PACKAGE_BYTES: u64 = 64 << 20;
@@ -365,7 +366,7 @@ async fn check_package(deb: &Path) -> Result<(), String> {
             .map_err(|_| "That isn't a package file".to_string())
     };
     if field("Package").await? != PACKAGE {
-        return Err("That package isn't YStreamer".into());
+        return Err("That package isn't RDstreamer".into());
     }
     let ours = architecture().await?;
     let theirs = field("Architecture").await?;

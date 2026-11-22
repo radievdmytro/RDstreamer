@@ -1,16 +1,17 @@
 #!/bin/sh
-# Installs YStreamer on a Raspberry Pi that already runs Raspberry Pi OS:
+# Installs or updates RDstreamer (YStreamer's fork) on a Raspberry Pi that
+# already runs Raspberry Pi OS, from its latest signed release on GitHub:
 #
-#   curl -fsSL https://ystreamer.yarosfpv.com/install.sh | sudo sh
+#   curl -fsSL https://raw.githubusercontent.com/radievdmytro/RDstreamer/main/device/packaging/install.sh | sudo sh
 #
 # Options, after `sh -s --` when piped:
 #   --check   look the device over and verify the download, install nothing
 #   --yes, -y don't ask before installing, or about a device that isn't supported
 set -eu
 
-MANIFEST_URL=${YSTREAMER_UPDATE_URL:-https://ystreamer.yarosfpv.com/update/manifest.json}
+MANIFEST_URL=${YSTREAMER_UPDATE_URL:-https://github.com/radievdmytro/RDstreamer/releases/latest/download/manifest.json}
 # The same key as update-key.pub, which the installed updater checks against
-PUBLIC_KEY="PGdZ5XTTQ6j+TeKZfSTFty0xEbNqowNBXr4A9zPQvlo="
+PUBLIC_KEY="W1Hu/o0+GSfxFtLSDtr9KTEulfh7tF0wi7L8CqJU6jg="
 UPDATES=/var/lib/ystreamer/update
 BOOT_CONFIG=/boot/firmware/config.txt
 

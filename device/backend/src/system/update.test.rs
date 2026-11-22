@@ -1,9 +1,9 @@
 use super::*;
 
 const MESSAGE: &[u8] = b"ystreamer update signature test";
-/// Made with packaging/sign.sh and the release key
+/// Made with packaging/sign.sh and RDstreamer's release key
 const SIGNATURE: &str =
-    "OxHasJoikfV8ax1bSbkuiDJM+KOWrSwxhn6NFy0GUOe2HbVV7Vpint6C4rKqoMib5/c6HN2VTcjO5W7Ev09JDg==";
+    "hv6xsUedQrETwno2Hbb3Ow0Wzl8Xd/ED3GjQSQo1TVY4YAyaW/QS2nhDXQp/I3qp/kbRmGJNtXhNGWcyvPu1Dw==";
 
 #[test]
 fn release_key_accepts_what_sign_sh_signed() {
