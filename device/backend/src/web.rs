@@ -45,7 +45,37 @@ pub fn bind() -> std::io::Result<std::net::TcpListener> {
         std::net::TcpListener::bind(("0.0.0.0", 8080))
     })?;
     listener.set_nonblocking(true)?;
+    limit_send_buffer(&listener);
     Ok(listener)
+}
+
+/// Connections take these from the listener. Left alone, Linux grew a
+/// browser's send buffer to megabytes, and over WiFi seconds of video sat
+/// there unseen: the viewer was 1-2 s behind and the server never noticed
+/// to skip ahead. This much is a few hundred ms of the goggles' video, still
+/// plenty for page loads and downloads. No Nagle delay on small messages
+fn limit_send_buffer(listener: &std::net::TcpListener) {
+    use std::os::fd::AsRawFd;
+    const SEND_BUFFER: libc::c_int = 256 << 10;
+    const ON: libc::c_int = 1;
+    let fd = listener.as_raw_fd();
+    // Safety: a valid socket and int options
+    unsafe {
+        libc::setsockopt(
+            fd,
+            libc::SOL_SOCKET,
+            libc::SO_SNDBUF,
+            (&SEND_BUFFER as *const libc::c_int).cast(),
+            size_of::<libc::c_int>() as libc::socklen_t,
+        );
+        libc::setsockopt(
+            fd,
+            libc::IPPROTO_TCP,
+            libc::TCP_NODELAY,
+            (&ON as *const libc::c_int).cast(),
+            size_of::<libc::c_int>() as libc::socklen_t,
+        );
+    }
 }
 
 /// Start the web server. Returns an unbounded sender; push raw H.264 (Annex B)

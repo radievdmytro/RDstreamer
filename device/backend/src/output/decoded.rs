@@ -91,6 +91,38 @@ type Consumer = Box<dyn FnMut(&gst::Sample) + Send>;
 struct Decoding {
     pipeline: gst::Pipeline,
     appsrc: AppSrc,
+    started: Instant,
+    progress: Arc<Progress>,
+}
+
+/// Whether pictures still come out of the decoder
+#[derive(Default)]
+struct Progress {
+    /// When the last one did, in ms since the decoder started
+    last_ms: AtomicU64,
+    /// Pictures handed in since then
+    waiting: AtomicU64,
+}
+
+/// Pictures in with none out for this long, and the decoder has silently
+/// stopped: the Pi's sometimes does after damaged video, with no error, and
+/// HDMI froze until the cable was plugged in again
+const STALL: Duration = Duration::from_millis(2500);
+/// ...and at least this many in, so a slow trickle (the splash screen's
+/// still picture) never counts as stopped
+const STALL_PICTURES: u64 = 90;
+
+impl Decoding {
+    fn stalled(&self) -> bool {
+        let waiting = self.progress.waiting.load(Ordering::Relaxed);
+        let since = self.started.elapsed().as_millis() as u64
+            - self.progress.last_ms.load(Ordering::Relaxed);
+        stalled(waiting, Duration::from_millis(since))
+    }
+}
+
+pub(crate) fn stalled(waiting: u64, since_output: Duration) -> bool {
+    waiting >= STALL_PICTURES && since_output >= STALL
 }
 
 /// Decodes the goggles' H.264 once for every output that shows pictures:
@@ -184,6 +216,9 @@ impl SharedDecoder {
         // Handed on from the decoder's thread: every subscriber's own
         // pipeline takes it without waiting
         let consumers = Arc::clone(&self.consumers);
+        let started = Instant::now();
+        let progress = Arc::new(Progress::default());
+        let out = Arc::clone(&progress);
         let sink = pipeline
             .by_name("sink")
             .expect("Failed to find appsink")
@@ -207,6 +242,9 @@ impl SharedDecoder {
             gstreamer_app::AppSinkCallbacks::builder()
                 .new_sample(move |sink| {
                     let sample = sink.pull_sample().map_err(|_| gst::FlowError::Eos)?;
+                    out.last_ms
+                        .store(started.elapsed().as_millis() as u64, Ordering::Relaxed);
+                    out.waiting.store(0, Ordering::Relaxed);
                     for (_, consumer) in consumers.lock().unwrap().iter_mut() {
                         consumer(&sample);
                     }
@@ -220,7 +258,12 @@ impl SharedDecoder {
             let _ = pipeline.set_state(gst::State::Null);
             return Err(reason);
         }
-        Ok(Decoding { pipeline, appsrc })
+        Ok(Decoding {
+            pipeline,
+            appsrc,
+            started,
+            progress,
+        })
     }
 
     /// Raw chunks from the source, cut into pictures here
@@ -249,7 +292,11 @@ impl SharedDecoder {
             return;
         };
         // Started again, to pick up at the next keyframe
-        if let Some(e) = take_error(&d.pipeline) {
+        let problem = take_error(&d.pipeline).or_else(|| {
+            d.stalled()
+                .then(|| "no pictures out of the decoder".to_string())
+        });
+        if let Some(e) = problem {
             eprintln!("[decode] {e}, restarting");
             let _ = d.pipeline.set_state(gst::State::Null);
             *decoding = None;
@@ -265,6 +312,7 @@ impl SharedDecoder {
             super::hdmi::patch_sps_level(&mut au);
         }
         if let Some(d) = decoding.as_ref() {
+            d.progress.waiting.fetch_add(1, Ordering::Relaxed);
             let _ = d.appsrc.push_buffer(gst::Buffer::from_mut_slice(au));
         }
     }

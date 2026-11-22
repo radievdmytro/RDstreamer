@@ -490,3 +490,13 @@ fn decodes_the_h265_converters_video() {
     );
     assert!(seen.iter().all(|&(w, h, _)| (w, h) == (1920, 1080)));
 }
+
+#[test]
+fn a_decoder_that_stopped_is_told_from_a_slow_one() {
+    // Video going in, nothing out for a while: stopped
+    assert!(stalled(150, Duration::from_secs(3)));
+    // A moment without pictures is normal (waiting for a keyframe)
+    assert!(!stalled(150, Duration::from_millis(800)));
+    // The splash screen's still picture trickles in slowly
+    assert!(!stalled(5, Duration::from_secs(10)));
+}

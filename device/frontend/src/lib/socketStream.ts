@@ -16,7 +16,7 @@ import {
 // it back, so it settles about as high as the link's jitter needs
 const TARGET_BUFFER = 0.05;
 // Past this the player is too far behind to catch up by speeding, so jump
-const MAX_BUFFER = 1.5;
+const MAX_BUFFER = 0.8;
 // Playback speeds up in proportion to the excess, so latency a stall added
 // drains away instead of staying until a reload
 const CATCH_UP_GAIN = 0.5;

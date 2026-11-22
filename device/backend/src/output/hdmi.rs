@@ -1,7 +1,7 @@
 use gstreamer as gst;
 use gstreamer::prelude::*;
 use gstreamer_app::AppSrc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -46,6 +46,8 @@ struct Running {
     /// Grading on the GPU, and whether that has failed
     look: bool,
     failed: Arc<AtomicBool>,
+    /// Pictures handed to the pipeline, to tell a frozen screen from no video
+    fed: Arc<AtomicU64>,
     /// Dropped before the pipeline stops, so nothing is handed to it
     subscription: Option<Subscription>,
 }
@@ -112,17 +114,26 @@ impl GstPlayer {
         let stats = Arc::clone(&this);
         thread::spawn(move || {
             let mut last_rendered: u64 = 0;
+            let mut frozen = Frozen::default();
             loop {
                 thread::sleep(Duration::from_secs(1));
                 stats.watchdog();
                 // Also catches the video changing size, e.g. 16:9 to 4:3
                 stats.refresh_logo();
-                let Some(sink) = stats.sink() else {
+                let Some((sink, fed, failed)) = stats.running() else {
+                    frozen = Frozen::default();
                     continue;
                 };
                 let s = sink.property::<gst::Structure>("stats");
                 let rendered = s.get::<u64>("rendered").unwrap_or(0);
                 let dropped = s.get::<u64>("dropped").unwrap_or(0);
+                // Pictures keep arriving but none reach the screen: the
+                // pipeline is stuck, and the watchdog starts it again
+                if frozen.update(fed, rendered) {
+                    eprintln!("[hdmi] the picture froze; starting the output again");
+                    failed.store(true, Ordering::Relaxed);
+                    frozen = Frozen::default();
+                }
                 if rendered != last_rendered && crate::settings::verbose() {
                     println!(
                         "[hdmi] {} fps (dropped={})",
@@ -307,7 +318,9 @@ impl GstPlayer {
             return Err(format!("Couldn't start HDMI output: {e}"));
         }
         // Carries the caps along, so the screen follows a change of size
+        let fed = Arc::clone(&running.fed);
         match self.decoder.subscribe(move |sample| {
+            fed.fetch_add(1, Ordering::Relaxed);
             let _ = appsrc.push_sample(sample);
         }) {
             Ok(s) => running.subscription = Some(s),
@@ -393,6 +406,17 @@ impl GstPlayer {
         ))
     }
 
+    /// The running pipeline's screen, pictures fed and failure flag
+    fn running(&self) -> Option<(gst::Element, u64, Arc<AtomicBool>)> {
+        let st = self.state.lock().unwrap();
+        let r = st.running.as_ref()?;
+        Some((
+            r.sink.clone(),
+            r.fed.load(Ordering::Relaxed),
+            Arc::clone(&r.failed),
+        ))
+    }
+
     fn sink(&self) -> Option<gst::Element> {
         let st = self.state.lock().unwrap();
         st.running.as_ref().map(|r| r.sink.clone())
@@ -436,6 +460,34 @@ fn video_area(screen: (u32, u32), video: (u32, u32), scaling: Scaling) -> Rect {
             w,
             h: screen.1,
         }
+    }
+}
+
+/// Tells a frozen screen from one with no video: pictures fed but none shown
+/// for a few seconds in a row
+#[derive(Default)]
+pub(crate) struct Frozen {
+    fed: u64,
+    rendered: u64,
+    seconds: u32,
+}
+
+impl Frozen {
+    const SECONDS: u32 = 3;
+
+    /// One reading a second; true once it has been frozen long enough
+    pub(crate) fn update(&mut self, fed: u64, rendered: u64) -> bool {
+        let fed_now = fed.saturating_sub(self.fed);
+        let shown = rendered != self.rendered;
+        self.fed = fed;
+        self.rendered = rendered;
+        // A dozen pictures a second at least: real video, not the splash
+        if fed_now >= 10 && !shown {
+            self.seconds += 1;
+        } else {
+            self.seconds = 0;
+        }
+        self.seconds >= Self::SECONDS
     }
 }
 
@@ -520,6 +572,7 @@ fn build(
             sink,
             look,
             failed,
+            fed: Arc::new(AtomicU64::new(0)),
             subscription: None,
         },
         appsrc,
@@ -545,3 +598,7 @@ impl Drop for GstPlayer {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "hdmi.test.rs"]
+mod tests;

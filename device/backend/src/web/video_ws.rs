@@ -9,7 +9,9 @@ use tokio::sync::broadcast;
 
 use super::AppState;
 
-const MAX_QUEUED: usize = 30;
+/// A quarter second at 60 fps: further behind than that, skip to the next
+/// keyframe rather than stay late
+const MAX_QUEUED: usize = 15;
 
 pub(super) async fn video_ws_handler(
     ws: WebSocketUpgrade,
