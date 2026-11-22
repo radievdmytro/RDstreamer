@@ -165,6 +165,7 @@ pub fn router<S>(services: Services) -> Router<S> {
             axum::routing::delete(display::look_remove),
         )
         .route("/display/look/download", post(display::look_download))
+        .route("/display/look/atlas", get(display::look_atlas))
         .route("/input", get(streaming::input_status))
         .route("/input/devices", get(streaming::input_devices))
         .route("/input/toggle", post(input::toggle))

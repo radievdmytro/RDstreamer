@@ -186,3 +186,32 @@ pub(super) async fn look_download() -> Result<Json<PackResult>, ApiError> {
     let added = crate::output::look::download_pack().await.map_err(failed)?;
     Ok(Json(PackResult { added }))
 }
+
+#[derive(Deserialize)]
+pub(super) struct LutId {
+    id: String,
+}
+
+/// The LUT as the GPU takes it: RGBA bytes, N slices of N × N side by side,
+/// N in X-Lut-Size. The preview in the web interface grades with it
+pub(super) async fn look_atlas(Query(q): Query<LutId>) -> Result<Response, ApiError> {
+    let atlas = tokio::task::spawn_blocking(move || crate::output::look::atlas_for(&q.id))
+        .await
+        .map_err(|e| failed(e.to_string()))?
+        .map_err(bad)?;
+    Ok((
+        [
+            (
+                axum::http::header::CONTENT_TYPE,
+                "application/octet-stream".to_string(),
+            ),
+            (
+                axum::http::HeaderName::from_static("x-lut-size"),
+                atlas.size.to_string(),
+            ),
+            (axum::http::header::CACHE_CONTROL, "no-store".to_string()),
+        ],
+        atlas.pixels,
+    )
+        .into_response())
+}

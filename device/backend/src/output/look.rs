@@ -479,6 +479,16 @@ pub fn select(look: &LookSettings, dewarp: &DewarpSettings) {
     current.key = Some(key);
 }
 
+/// The texture the GPU grades with for `id`, for the web interface's preview
+/// to grade the same way
+pub fn atlas_for(id: &str) -> Result<Atlas, String> {
+    let lut = match file_path(id) {
+        Some(path) => parse_cube(&fs::read_to_string(path).map_err(|_| "No such LUT")?)?.fitted(),
+        None => preset(id).ok_or("No such LUT")?,
+    };
+    Ok(Atlas::new(&lut))
+}
+
 #[derive(Serialize)]
 pub struct LutFile {
     /// "file:" and the file's name

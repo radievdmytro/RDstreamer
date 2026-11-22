@@ -5,6 +5,7 @@
   import OverlayCard from "@/components/display/OverlayCard.svelte";
   import LookCard from "@/components/display/LookCard.svelte";
   import DewarpCard from "@/components/display/DewarpCard.svelte";
+  import PreviewCard from "@/components/display/PreviewCard.svelte";
   let {
     display = $bindable(),
     splash = $bindable(),
@@ -26,6 +27,7 @@
   {:else if tab === "logo"}
     <OverlayCard bind:overlay />
   {:else if tab === "image"}
+    <PreviewCard {display} />
     <LookCard bind:display />
     <DewarpCard bind:display />
   {/if}
