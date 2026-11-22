@@ -158,10 +158,13 @@ pub fn router<S>(services: Services) -> Router<S> {
         .route("/display/look", get(display::look_status))
         .route(
             "/display/look/lut",
-            put(display::look_upload)
-                .delete(display::look_remove)
-                .layer(DefaultBodyLimit::max(crate::output::look::MAX_FILE)),
+            put(display::look_upload).layer(DefaultBodyLimit::max(crate::output::look::MAX_FILE)),
         )
+        .route(
+            "/display/look/lut/{id}",
+            axum::routing::delete(display::look_remove),
+        )
+        .route("/display/look/download", post(display::look_download))
         .route("/input", get(streaming::input_status))
         .route("/input/devices", get(streaming::input_devices))
         .route("/input/toggle", post(input::toggle))

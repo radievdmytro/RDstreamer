@@ -12,6 +12,7 @@ import type {
   OmtStatus,
   DisplayStatus,
   LookStatus,
+  LutFile,
 } from "@/types/settings";
 import type { NetworkStatus, ScanResult, WifiCountries } from "@/types/network";
 import type { TailscaleStatus } from "@/types/tailscale";
@@ -181,13 +182,19 @@ export const api = {
   omt: () => request<OmtStatus>("GET", "/omt"),
   display: () => request<DisplayStatus>("GET", "/display"),
   look: () => request<LookStatus>("GET", "/display/look"),
-  uploadLut: (cube: Blob) =>
-    request<{ title: string | null; size: number }>(
+  uploadLut: (name: string, cube: Blob) =>
+    request<LutFile>(
       "PUT",
-      "/display/look/lut",
+      `/display/look/lut?name=${encodeURIComponent(name)}`,
       cube,
     ),
-  removeLut: () => request<void>("DELETE", "/display/look/lut"),
+  removeLut: (id: string) =>
+    request<void>(
+      "DELETE",
+      `/display/look/lut/${encodeURIComponent(id.replace(/^file:/, ""))}`,
+    ),
+  downloadLuts: () =>
+    request<{ added: number }>("POST", "/display/look/download"),
   input: () => request<InputStatus>("GET", "/input"),
   /** Probes every device; not for polling */
   inputDevices: () => request<UvcDevice[]>("GET", "/input/devices"),

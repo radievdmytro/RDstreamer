@@ -102,12 +102,25 @@ export interface Settings {
     /** A 3D LUT on the HDMI picture, graded on the GPU */
     look: {
       enabled: boolean;
-      /** A preset's id, or "custom" for the uploaded .cube */
+      /** A preset's id, or "file:" and a library LUT's name */
       lut: string;
       /** 0-100 % */
       strength: number;
-      /** speed: graded at 720p, 60 fps; quality: full size, about 48 fps */
+      /** For the look and dewarp both. speed: 720p, 60 fps; quality: full size, about 48 fps */
       quality: "speed" | "quality";
+    };
+    /** Lens correction on the HDMI picture */
+    dewarp: {
+      enabled: boolean;
+      /** -100 to 100 % */
+      fisheye: number;
+      /** -100 to 100 % */
+      edge: number;
+      /** -50 to 100 % */
+      zoom: number;
+      /** -50 to 50 % */
+      offset_x: number;
+      offset_y: number;
     };
   };
   splash: {
@@ -230,10 +243,17 @@ export interface DisplayMode {
   fits_screen: boolean;
 }
 
+export interface LutFile {
+  /** "file:" and its name */
+  id: string;
+  name: string;
+  size: number;
+}
+
 export interface LookStatus {
   presets: { id: string; label: string }[];
-  /** The uploaded .cube, if there is one */
-  custom: { title: string | null; size: number } | null;
+  /** The LUT library */
+  files: LutFile[];
   /** GPU grading couldn't start on this device, and why */
   error: string | null;
 }

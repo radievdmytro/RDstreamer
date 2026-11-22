@@ -1,6 +1,7 @@
-//! `rdlook`: a GL filter that grades every pixel through the LUT in
-//! `look::CURRENT`. GStreamer's own glshader takes just the one texture,
-//! so this binds the LUT as a second one beside the picture.
+//! `rdlook`: a GL filter that straightens the picture (dewarp) and grades
+//! every pixel through the LUT in `look::CURRENT`. GStreamer's own glshader
+//! takes just the one texture, so this binds the LUT as a second one beside
+//! the picture.
 
 use std::ffi::c_void;
 use std::sync::{LazyLock, Mutex};
@@ -44,6 +45,21 @@ uniform sampler2D tex;
 uniform sampler2D lut;
 uniform float size;
 uniform float strength;
+uniform float dewarp;
+uniform float k1;
+uniform float k2;
+uniform float scale;
+uniform vec2 offset;
+uniform float aspect;
+
+// Where this output point samples the picture: look::Dewarp::source
+vec2 warp(vec2 uv) {
+    vec2 p = vec2((uv.x * 2.0 - 1.0) * aspect, uv.y * 2.0 - 1.0);
+    p = p / scale + vec2(offset.x * 2.0 * aspect, offset.y * 2.0);
+    float r2 = dot(p, p) / (1.0 + aspect * aspect);
+    p *= 1.0 + k1 * r2 + k2 * r2 * r2;
+    return vec2(p.x / aspect, p.y) * 0.5 + 0.5;
+}
 
 vec3 lookup(vec3 c) {
     float n = size - 1.0;
@@ -59,7 +75,13 @@ vec3 lookup(vec3 c) {
 }
 
 void main() {
-    vec4 c = texture2D(tex, v_texcoord);
+    vec2 uv = dewarp > 0.5 ? warp(v_texcoord) : v_texcoord;
+    // What the correction pulls in from beyond the picture is black
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+    }
+    vec4 c = texture2D(tex, uv);
     vec3 graded = lookup(clamp(c.rgb, 0.0, 1.0));
     gl_FragColor = vec4(mix(c.rgb, graded, strength), 1.0);
 }
@@ -222,9 +244,14 @@ mod imp {
             input: &gst_gl::GLMemory,
             output: &gst_gl::GLMemory,
         ) -> Result<(), gst::LoggableError> {
-            let (atlas, version, strength) = {
+            let (atlas, version, strength, dewarp) = {
                 let current = crate::output::look::CURRENT.lock().unwrap();
-                (current.atlas.clone(), current.version, current.strength)
+                (
+                    current.atlas.clone(),
+                    current.version,
+                    current.strength,
+                    current.dewarp,
+                )
             };
             let mut st = self.state.lock().unwrap();
             let st = &mut *st;
@@ -275,6 +302,13 @@ mod imp {
             shader.set_uniform_1i("lut", 2);
             shader.set_uniform_1f("size", st.size.max(2.0));
             shader.set_uniform_1f("strength", if graded { strength } else { 0.0 });
+            let aspect = output.texture_width() as f32 / output.texture_height().max(1) as f32;
+            shader.set_uniform_1f("dewarp", if dewarp.on { 1.0 } else { 0.0 });
+            shader.set_uniform_1f("k1", dewarp.k1);
+            shader.set_uniform_1f("k2", dewarp.k2);
+            shader.set_uniform_1f("scale", dewarp.scale);
+            shader.set_uniform_2f("offset", dewarp.offset[0], dewarp.offset[1]);
+            shader.set_uniform_1f("aspect", aspect);
             self.obj()
                 .render_to_target_with_shader(input, output, shader);
             Ok(())

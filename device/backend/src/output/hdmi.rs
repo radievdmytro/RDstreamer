@@ -223,13 +223,16 @@ impl GstPlayer {
             return Ok(());
         }
 
-        // Another LUT or strength shows on the next picture; turning the
-        // look on or off, or its quality, needs another pipeline
-        crate::output::look::select(&cfg.look);
-        if st.cfg.look != cfg.look {
+        // Another LUT, strength or dewarp shows on the next picture; turning
+        // the GPU stage on or off, or its quality, needs another pipeline
+        crate::output::look::select(&cfg.look, &cfg.dewarp);
+        if st.cfg.look != cfg.look || st.cfg.dewarp != cfg.dewarp {
             st.look_failed = false;
         }
-        let look = cfg.look.enabled && !st.look_failed && crate::output::look::register().is_ok();
+        // The GPU stage is there for either the look or dewarp
+        let look = (cfg.look.enabled || cfg.dewarp.enabled)
+            && !st.look_failed
+            && crate::output::look::register().is_ok();
         let unchanged = st.running.is_some()
             && st.running.as_ref().is_some_and(|r| r.look == look)
             && st.cfg.look.quality == cfg.look.quality

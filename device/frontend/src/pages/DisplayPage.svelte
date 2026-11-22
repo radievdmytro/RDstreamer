@@ -4,6 +4,7 @@
   import SplashCard from "@/components/display/SplashCard.svelte";
   import OverlayCard from "@/components/display/OverlayCard.svelte";
   import LookCard from "@/components/display/LookCard.svelte";
+  import DewarpCard from "@/components/display/DewarpCard.svelte";
   let {
     display = $bindable(),
     splash = $bindable(),
@@ -24,7 +25,8 @@
     <SplashCard bind:splash />
   {:else if tab === "logo"}
     <OverlayCard bind:overlay />
-  {:else if tab === "look"}
+  {:else if tab === "image"}
     <LookCard bind:display />
+    <DewarpCard bind:display />
   {/if}
 </div>

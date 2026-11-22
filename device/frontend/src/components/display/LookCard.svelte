@@ -19,7 +19,7 @@
   ];
 
   let status = $state<LookStatus | null>(null);
-  let busy = $state(false);
+  let busy = $state<string | null>(null);
   let fileInput = $state<HTMLInputElement>();
 
   async function refresh() {
@@ -32,79 +32,111 @@
 
   onMount(refresh);
 
+  const gpu = $derived(display.look.enabled || display.dewarp.enabled);
+  const isFile = $derived(display.look.lut.startsWith("file:"));
+  const selectedFile = $derived(
+    status?.files.find((f) => f.id === display.look.lut) ?? null,
+  );
+
   const options = $derived.by(() => {
     const list = (status?.presets ?? []).map((p) => ({
       label: p.label,
       value: p.id,
     }));
-    if (status?.custom)
+    for (const f of status?.files ?? [])
+      list.push({ label: `${f.name} (${f.size}-point)`, value: f.id });
+    if (isFile && !selectedFile)
       list.push({
-        label: `Custom: ${status.custom.title || "uploaded .cube"} (${status.custom.size}-point)`,
-        value: "custom",
+        label: "LUT no longer in the library",
+        value: display.look.lut,
       });
-    else if (display.look.lut === "custom")
-      list.push({ label: "Custom (file missing)", value: "custom" });
     return list;
   });
 
-  async function upload(file: File) {
-    busy = true;
-    try {
-      const info = await api.uploadLut(file);
-      await refresh();
-      display.look.lut = "custom";
+  async function upload(files: File[]) {
+    busy = "upload";
+    let added = 0;
+    let last: string | null = null;
+    const failed: string[] = [];
+    for (const file of files) {
+      try {
+        const saved = await api.uploadLut(file.name, file);
+        added++;
+        last = saved.id;
+      } catch (e) {
+        failed.push(`${file.name}: ${message(e)}`);
+      }
+    }
+    await refresh();
+    if (added === 1 && last) display.look.lut = last;
+    busy = null;
+    if (failed.length) snackbar.show(failed.join(" · "), true);
+    else
       snackbar.show(
-        `LUT ${info.title ? `"${info.title}" ` : ""}loaded (${info.size}-point). Save to apply.`,
+        added === 1
+          ? "LUT added and selected. Save to apply."
+          : `${added} LUTs added to the list`,
       );
+  }
+
+  async function downloadPack() {
+    busy = "download";
+    try {
+      const { added } = await api.downloadLuts();
+      await refresh();
+      snackbar.show(`${added} LUTs added to the list`);
     } catch (e) {
       snackbar.show(message(e), true);
     } finally {
-      busy = false;
+      busy = null;
     }
   }
 
-  async function remove() {
-    busy = true;
+  async function removeSelected() {
+    const file = selectedFile;
+    if (!file) return;
+    busy = "remove";
     try {
-      await api.removeLut();
-      if (display.look.lut === "custom") display.look.lut = "film";
+      await api.removeLut(file.id);
+      display.look.lut = "film";
       await refresh();
-      snackbar.show("Custom LUT removed");
+      snackbar.show(`${file.name} removed`);
     } catch (e) {
       snackbar.show(message(e), true);
     } finally {
-      busy = false;
+      busy = null;
     }
   }
 </script>
 
 <Card
-  title="Look"
-  description="Colour grading on the HDMI picture, done on the GPU. Streams, recordings and the browser view are not changed."
+  title="Processing"
+  description="The LUT and dewarp are done on the GPU, for HDMI only. Streams, recordings and the browser view are not changed."
 >
   {#if status?.error}
     <p class="bg-down/10 px-4 py-3 text-[12px] text-down">{status.error}</p>
   {/if}
-
-  <Field label="Apply a LUT" for="look-enabled">
-    <Switch id="look-enabled" bind:checked={display.look.enabled} />
-  </Field>
-
   <Field
-    label="Processing"
+    label="Quality"
     help={display.look.quality === "speed"
-      ? "Graded at 720p and scaled up by the display: smooth at 60 fps, a little softer."
-      : "Graded at full size: sharpest, but a Pi 4 manages about 48 fps, so fast motion can judder."}
-    disabled={!display.look.enabled}
+      ? "Worked at 720p and scaled up by the display: smooth at 60 fps, a little softer."
+      : "Worked at full size: sharpest, but a Pi 4 manages about 48 fps, so fast motion can judder."}
+    disabled={!gpu}
   >
     <div class="w-full sm:w-80">
       <Segmented
         options={QUALITY}
         value={display.look.quality}
-        disabled={!display.look.enabled}
+        disabled={!gpu}
         onchange={(v) => (display.look.quality = v)}
       />
     </div>
+  </Field>
+</Card>
+
+<Card title="LUT">
+  <Field label="Apply a LUT" for="look-enabled">
+    <Switch id="look-enabled" bind:checked={display.look.enabled} />
   </Field>
 
   <Field label="LUT" for="look-lut" disabled={!display.look.enabled}>
@@ -133,36 +165,52 @@
   </div>
 
   <Field
-    label="Your own LUT"
-    help="A 3D .cube file, e.g. a manufacturer's LOG to Rec.709 LUT or one exported from DaVinci Resolve. Up to 65 points."
+    label="Add LUTs"
+    help="3D .cube files, several at once: DJI's official D-Log / D-Log M / D-Cinelike to Rec.709 LUTs for your camera (dji.com/lut), ones exported from DaVinci Resolve, or any other."
   >
-    <div class="flex gap-2">
+    <div class="flex flex-wrap justify-end gap-2">
       <input
         bind:this={fileInput}
         type="file"
         accept=".cube,text/plain"
+        multiple
         class="hidden"
         onchange={(e) => {
-          const f = e.currentTarget.files?.[0];
-          e.currentTarget.value = "";
-          if (f) upload(f);
+          const input = e.currentTarget;
+          const picked = [...(input.files ?? [])];
+          input.value = "";
+          if (picked.length) upload(picked);
         }}
       />
       <button
         type="button"
         class={btn.plain}
-        disabled={busy}
+        disabled={!!busy}
         onclick={() => fileInput?.click()}
-        >{busy ? "Loading…" : status?.custom ? "Replace…" : "Upload…"}</button
+        >{busy === "upload" ? "Adding…" : "Upload .cube…"}</button
       >
-      {#if status?.custom}
+      {#if selectedFile}
         <button
           type="button"
           class={btn.danger}
-          disabled={busy}
-          onclick={remove}>Remove</button
+          disabled={!!busy}
+          onclick={removeSelected}
+          >{busy === "remove" ? "Removing…" : "Remove selected"}</button
         >
       {/if}
     </div>
+  </Field>
+
+  <Field
+    label="Free LUT pack"
+    help="Todd Blankenship's 13 looks (Crisp Autumn, Hard Boost, Long Beach Morning, Orange and Blue, Waves…), downloaded by the device from G'MIC's site. Needs internet."
+  >
+    <button
+      type="button"
+      class={btn.plain}
+      disabled={!!busy}
+      onclick={downloadPack}
+      >{busy === "download" ? "Downloading…" : "Download"}</button
+    >
   </Field>
 </Card>

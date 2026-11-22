@@ -71,6 +71,8 @@ gstreamer-video = "0.22"
 gstreamer-rtsp-server = "0.22"
 gstreamer-gl = "0.22"
 gstreamer-base = "0.22"
+# Unpacks LUT packs downloaded onto the device
+zip = { version = "9", default-features = false, features = ["deflate"] }
 
 # misc
 anyhow = "1"

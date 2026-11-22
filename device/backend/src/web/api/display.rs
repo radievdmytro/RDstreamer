@@ -147,22 +147,42 @@ pub(super) async fn look_status(
     )
 }
 
-/// A `.cube` 3D LUT, kept as the custom look
+#[derive(Deserialize)]
+pub(super) struct LutName {
+    name: String,
+}
+
+/// A `.cube` 3D LUT into the library, under its file name
 pub(super) async fn look_upload(
     State(sv): State<Services>,
+    Query(q): Query<LutName>,
     file: axum::body::Bytes,
-) -> Result<Json<crate::output::look::CustomInfo>, ApiError> {
-    let info = tokio::task::spawn_blocking(move || crate::output::look::save_custom(&file))
+) -> Result<Json<crate::output::look::LutFile>, ApiError> {
+    let info = tokio::task::spawn_blocking(move || crate::output::look::save(&q.name, &file))
         .await
         .map_err(|e| failed(e.to_string()))?
-        .map_err(|e| bad(format!("Couldn't use that LUT: {e}")))?;
-    // Picked up at once if the custom look is the one showing
+        .map_err(|e| bad(format!("Couldn't use {}: {e}", "that LUT")))?;
+    // Picked up at once if that LUT is the one showing
     let _ = sv.player.apply(&sv.store.get().display);
     Ok(Json(info))
 }
 
-pub(super) async fn look_remove(State(sv): State<Services>) -> Result<StatusCode, ApiError> {
-    crate::output::look::remove_custom().map_err(failed)?;
+pub(super) async fn look_remove(
+    State(sv): State<Services>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Result<StatusCode, ApiError> {
+    crate::output::look::remove(&format!("{}{id}", crate::output::look::FILE)).map_err(bad)?;
     let _ = sv.player.apply(&sv.store.get().display);
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Serialize)]
+pub(super) struct PackResult {
+    added: usize,
+}
+
+/// Fetches the free LUT pack from its publisher into the library
+pub(super) async fn look_download() -> Result<Json<PackResult>, ApiError> {
+    let added = crate::output::look::download_pack().await.map_err(failed)?;
+    Ok(Json(PackResult { added }))
 }
