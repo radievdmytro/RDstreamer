@@ -7,7 +7,7 @@
 
 # RDstreamer
 
-**Your FPV feed, on every screen. Now made for the Argon ONE case.**
+**Your FPV feed, on every screen. Made for the Argon ONE case, with working fan control.**
 
 A fork of [**YStreamer**](https://github.com/YLabs-FPV/YStreamer) by YarosFPV:
 Raspberry Pi 4 software that takes the live video from your DJI goggles or a USB
@@ -27,6 +27,13 @@ new look and a faster web interface.
 <img src="docs/rdstreamer/splash.webp" alt="The RDstreamer HDMI splash screen with the RD logo" width="100%" />
 
 </div>
+
+> [!IMPORTANT]
+> **Made for the Raspberry Pi 4 in an Argon ONE (V2) case.** The case's fan
+> control works out of the box: RDstreamer runs the fan on its own temperature
+> curve, set from the web interface, and handles the case's power button and
+> power cut too. No Argon40 scripts or `argononed` needed.
+> [More below](#-argon-one-case-built-in).
 
 ---
 
