@@ -8,7 +8,7 @@ use tokio::process::Command;
 const UNIT: &str = "ssh.service";
 const SOCKET: &str = "ssh.socket";
 /// The account the image is made with, and its password until it's changed
-const IMAGE_USER: &str = "ystreamer";
+const IMAGE_USER: &str = "rdstreamer";
 const MIN_PASSWORD: usize = 8;
 
 #[derive(Serialize)]

@@ -6,8 +6,8 @@ DEPLOY_COMPRESSION=xz
 
 TARGET_HOSTNAME=rdstreamer
 # The login for SSH, which stays off until switched on in the web interface
-FIRST_USER_NAME=ystreamer
-FIRST_USER_PASS=ystreamer
+FIRST_USER_NAME=rdstreamer
+FIRST_USER_PASS=rdstreamer
 DISABLE_FIRST_BOOT_USER_RENAME=1
 ENABLE_SSH=0
 # Imager offers no setup options for a custom image, and the stage purges
