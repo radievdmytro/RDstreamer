@@ -1,0 +1,300 @@
+//! `rdlook`: a GL filter that grades every pixel through the LUT in
+//! `look::CURRENT`. GStreamer's own glshader takes just the one texture,
+//! so this binds the LUT as a second one beside the picture.
+
+use std::ffi::c_void;
+use std::sync::{LazyLock, Mutex};
+
+use gstreamer as gst;
+use gstreamer::glib;
+use gstreamer::prelude::*;
+use gstreamer::subclass::prelude::*;
+use gstreamer_base::subclass::prelude::*;
+use gstreamer_gl as gst_gl;
+use gstreamer_gl::prelude::*;
+use gstreamer_gl::subclass::prelude::*;
+
+const TEXTURE_2D: u32 = 0x0DE1;
+const TEXTURE0: u32 = 0x84C0;
+/// GstGLFilter draws with the picture on unit 1, so the LUT goes on 2
+const LUT_UNIT: u32 = 0x84C2;
+const RGBA: u32 = 0x1908;
+const UNSIGNED_BYTE: u32 = 0x1401;
+const TEXTURE_MAG_FILTER: u32 = 0x2800;
+const TEXTURE_MIN_FILTER: u32 = 0x2801;
+const TEXTURE_WRAP_S: u32 = 0x2802;
+const TEXTURE_WRAP_T: u32 = 0x2803;
+const LINEAR: i32 = 0x2601;
+const CLAMP_TO_EDGE: i32 = 0x812F;
+const UNPACK_ALIGNMENT: u32 = 0x0CF5;
+const FRAGMENT_SHADER: u32 = 0x8B30;
+
+/// The LUT is N slices of N × N side by side: blue picks two neighbouring
+/// slices, red and green are filtered by the texture unit inside each
+pub const FRAGMENT: &str = r#"
+#ifdef GL_ES
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+#endif
+varying vec2 v_texcoord;
+uniform sampler2D tex;
+uniform sampler2D lut;
+uniform float size;
+uniform float strength;
+
+vec3 lookup(vec3 c) {
+    float n = size - 1.0;
+    float b = c.b * n;
+    float b0 = floor(b);
+    float b1 = min(b0 + 1.0, n);
+    float x = c.r * n + 0.5;
+    float y = (c.g * n + 0.5) / size;
+    float w = size * size;
+    vec3 s0 = texture2D(lut, vec2((b0 * size + x) / w, y)).rgb;
+    vec3 s1 = texture2D(lut, vec2((b1 * size + x) / w, y)).rgb;
+    return mix(s0, s1, b - b0);
+}
+
+void main() {
+    vec4 c = texture2D(tex, v_texcoord);
+    vec3 graded = lookup(clamp(c.rgb, 0.0, 1.0));
+    gl_FragColor = vec4(mix(c.rgb, graded, strength), 1.0);
+}
+"#;
+
+type ActiveTexture = extern "C" fn(u32);
+type BindTexture = extern "C" fn(u32, u32);
+type GenTextures = extern "C" fn(i32, *mut u32);
+type DeleteTextures = extern "C" fn(i32, *const u32);
+type TexParameteri = extern "C" fn(u32, u32, i32);
+type PixelStorei = extern "C" fn(u32, i32);
+type TexImage2d = extern "C" fn(u32, i32, i32, i32, i32, i32, u32, u32, *const c_void);
+
+/// The few GL calls GStreamer has no wrapper for
+struct Gl {
+    active_texture: ActiveTexture,
+    bind_texture: BindTexture,
+    gen_textures: GenTextures,
+    delete_textures: DeleteTextures,
+    tex_parameteri: TexParameteri,
+    pixel_storei: PixelStorei,
+    tex_image_2d: TexImage2d,
+}
+
+impl Gl {
+    fn load(context: &gst_gl::GLContext) -> Option<Self> {
+        macro_rules! get {
+            ($name:literal, $ty:ty) => {{
+                let p = context.proc_address($name);
+                if p == 0 {
+                    return None;
+                }
+                // SAFETY: the address GL gave for this very function,
+                // called with the signature the GL ES 2 spec gives it
+                unsafe { std::mem::transmute::<usize, $ty>(p) }
+            }};
+        }
+        Some(Self {
+            active_texture: get!("glActiveTexture", ActiveTexture),
+            bind_texture: get!("glBindTexture", BindTexture),
+            gen_textures: get!("glGenTextures", GenTextures),
+            delete_textures: get!("glDeleteTextures", DeleteTextures),
+            tex_parameteri: get!("glTexParameteri", TexParameteri),
+            pixel_storei: get!("glPixelStorei", PixelStorei),
+            tex_image_2d: get!("glTexImage2D", TexImage2d),
+        })
+    }
+}
+
+#[derive(Default)]
+struct GlState {
+    gl: Option<Gl>,
+    shader: Option<gst_gl::GLShader>,
+    texture: u32,
+    version: u64,
+    size: f32,
+}
+
+// SAFETY: only ever touched on GStreamer's GL thread, behind the mutex
+unsafe impl Send for GlState {}
+
+mod imp {
+    use super::*;
+
+    #[derive(Default)]
+    pub struct RdLook {
+        state: Mutex<GlState>,
+    }
+
+    #[glib::object_subclass]
+    impl ObjectSubclass for RdLook {
+        const NAME: &'static str = "RdLook";
+        type Type = super::RdLook;
+        type ParentType = gst_gl::GLFilter;
+    }
+
+    impl ObjectImpl for RdLook {}
+    impl GstObjectImpl for RdLook {}
+
+    impl ElementImpl for RdLook {
+        fn metadata() -> Option<&'static gst::subclass::ElementMetadata> {
+            static META: LazyLock<gst::subclass::ElementMetadata> = LazyLock::new(|| {
+                gst::subclass::ElementMetadata::new(
+                    "RDstreamer look",
+                    "Filter/Effect/Video",
+                    "Grades video through a 3D LUT on the GPU",
+                    "RDstreamer",
+                )
+            });
+            Some(&META)
+        }
+    }
+
+    impl BaseTransformImpl for RdLook {
+        const MODE: gstreamer_base::subclass::BaseTransformMode =
+            gstreamer_base::subclass::BaseTransformMode::NeverInPlace;
+        const PASSTHROUGH_ON_SAME_CAPS: bool = false;
+        const TRANSFORM_IP_ON_PASSTHROUGH: bool = false;
+    }
+
+    impl GLBaseFilterImpl for RdLook {
+        fn gl_start(&self) -> Result<(), gst::LoggableError> {
+            let context = GLBaseFilterExt::context(&*self.obj())
+                .ok_or_else(|| gst::loggable_error!(gst::CAT_RUST, "no GL context"))?;
+            let shader = gst_gl::GLShader::new(&context);
+            let vertex = gst_gl::GLSLStage::new_default_vertex(&context);
+            vertex
+                .compile()
+                .map_err(|e| gst::loggable_error!(gst::CAT_RUST, "vertex shader: {e}"))?;
+            shader
+                .attach_unlocked(&vertex)
+                .map_err(|e| gst::loggable_error!(gst::CAT_RUST, "vertex shader: {e}"))?;
+            let fragment = gst_gl::GLSLStage::with_strings(
+                &context,
+                FRAGMENT_SHADER,
+                gst_gl::GLSLVersion::None,
+                gst_gl::GLSLProfile::ES | gst_gl::GLSLProfile::COMPATIBILITY,
+                &[FRAGMENT],
+            );
+            fragment
+                .compile()
+                .map_err(|e| gst::loggable_error!(gst::CAT_RUST, "LUT shader: {e}"))?;
+            shader
+                .attach_unlocked(&fragment)
+                .map_err(|e| gst::loggable_error!(gst::CAT_RUST, "LUT shader: {e}"))?;
+            shader
+                .link()
+                .map_err(|e| gst::loggable_error!(gst::CAT_RUST, "LUT shader: {e}"))?;
+            let gl = Gl::load(&context)
+                .ok_or_else(|| gst::loggable_error!(gst::CAT_RUST, "GL functions missing"))?;
+
+            let mut st = self.state.lock().unwrap();
+            *st = GlState {
+                gl: Some(gl),
+                shader: Some(shader),
+                ..Default::default()
+            };
+            drop(st);
+            self.parent_gl_start()
+        }
+
+        fn gl_stop(&self) {
+            let mut st = self.state.lock().unwrap();
+            if let Some(gl) = &st.gl
+                && st.texture != 0
+            {
+                (gl.delete_textures)(1, &st.texture);
+            }
+            *st = GlState::default();
+            drop(st);
+            self.parent_gl_stop()
+        }
+    }
+
+    impl GLFilterImpl for RdLook {
+        const MODE: gst_gl::subclass::GLFilterMode = gst_gl::subclass::GLFilterMode::Texture;
+
+        fn filter_texture(
+            &self,
+            input: &gst_gl::GLMemory,
+            output: &gst_gl::GLMemory,
+        ) -> Result<(), gst::LoggableError> {
+            let (atlas, version, strength) = {
+                let current = crate::output::look::CURRENT.lock().unwrap();
+                (current.atlas.clone(), current.version, current.strength)
+            };
+            let mut st = self.state.lock().unwrap();
+            let st = &mut *st;
+            let (Some(gl), Some(shader)) = (&st.gl, &st.shader) else {
+                return Err(gst::loggable_error!(gst::CAT_RUST, "not started"));
+            };
+
+            if st.version != version {
+                if let Some(atlas) = &atlas {
+                    if st.texture == 0 {
+                        (gl.gen_textures)(1, &mut st.texture);
+                    }
+                    (gl.active_texture)(LUT_UNIT);
+                    (gl.bind_texture)(TEXTURE_2D, st.texture);
+                    (gl.pixel_storei)(UNPACK_ALIGNMENT, 1);
+                    for (param, value) in [
+                        (TEXTURE_MIN_FILTER, LINEAR),
+                        (TEXTURE_MAG_FILTER, LINEAR),
+                        (TEXTURE_WRAP_S, CLAMP_TO_EDGE),
+                        (TEXTURE_WRAP_T, CLAMP_TO_EDGE),
+                    ] {
+                        (gl.tex_parameteri)(TEXTURE_2D, param, value);
+                    }
+                    (gl.tex_image_2d)(
+                        TEXTURE_2D,
+                        0,
+                        RGBA as i32,
+                        atlas.width as i32,
+                        atlas.height as i32,
+                        0,
+                        RGBA,
+                        UNSIGNED_BYTE,
+                        atlas.pixels.as_ptr().cast(),
+                    );
+                    (gl.active_texture)(TEXTURE0);
+                    st.size = atlas.size as f32;
+                }
+                st.version = version;
+            }
+
+            // Without a LUT (a custom one that's gone, say) the picture
+            // goes through as it is
+            let graded = atlas.is_some() && st.texture != 0;
+            (gl.active_texture)(LUT_UNIT);
+            (gl.bind_texture)(TEXTURE_2D, if graded { st.texture } else { 0 });
+            (gl.active_texture)(TEXTURE0);
+            shader.use_();
+            shader.set_uniform_1i("lut", 2);
+            shader.set_uniform_1f("size", st.size.max(2.0));
+            shader.set_uniform_1f("strength", if graded { strength } else { 0.0 });
+            self.obj()
+                .render_to_target_with_shader(input, output, shader);
+            Ok(())
+        }
+    }
+}
+
+glib::wrapper! {
+    pub struct RdLook(ObjectSubclass<imp::RdLook>)
+        @extends gst_gl::GLFilter, gst_gl::GLBaseFilter, gstreamer_base::BaseTransform,
+            gst::Element, gst::Object;
+}
+
+/// Makes `rdlook` available to pipelines; once is enough
+pub fn register() -> Result<(), String> {
+    static DONE: std::sync::OnceLock<Result<(), String>> = std::sync::OnceLock::new();
+    DONE.get_or_init(|| {
+        gst::init().map_err(|e| e.to_string())?;
+        gst::Element::register(None, "rdlook", gst::Rank::NONE, RdLook::static_type())
+            .map_err(|e| e.to_string())
+    })
+    .clone()
+}

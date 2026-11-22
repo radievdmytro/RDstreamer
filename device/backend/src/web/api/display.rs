@@ -135,3 +135,34 @@ pub(super) async fn splash_remove(State(sv): State<Services>) -> Result<StatusCo
         .map_err(|e| failed(format!("Couldn't remove the image: {e}")))?;
     Ok(StatusCode::NO_CONTENT)
 }
+
+pub(super) async fn look_status(
+    State(sv): State<Services>,
+) -> Json<crate::output::look::LookStatus> {
+    let error = sv.player.look_error();
+    Json(
+        tokio::task::spawn_blocking(move || crate::output::look::status(error))
+            .await
+            .unwrap_or_else(|_| crate::output::look::status(None)),
+    )
+}
+
+/// A `.cube` 3D LUT, kept as the custom look
+pub(super) async fn look_upload(
+    State(sv): State<Services>,
+    file: axum::body::Bytes,
+) -> Result<Json<crate::output::look::CustomInfo>, ApiError> {
+    let info = tokio::task::spawn_blocking(move || crate::output::look::save_custom(&file))
+        .await
+        .map_err(|e| failed(e.to_string()))?
+        .map_err(|e| bad(format!("Couldn't use that LUT: {e}")))?;
+    // Picked up at once if the custom look is the one showing
+    let _ = sv.player.apply(&sv.store.get().display);
+    Ok(Json(info))
+}
+
+pub(super) async fn look_remove(State(sv): State<Services>) -> Result<StatusCode, ApiError> {
+    crate::output::look::remove_custom().map_err(failed)?;
+    let _ = sv.player.apply(&sv.store.get().display);
+    Ok(StatusCode::NO_CONTENT)
+}

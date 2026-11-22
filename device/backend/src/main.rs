@@ -42,6 +42,19 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn run() -> anyhow::Result<()> {
+    // GPU work off screen, on the render node: the screen itself belongs to
+    // kmssink, which a GL window on it would fight. Set before any thread
+    // starts; a value given from outside wins
+    for (key, value) in [
+        ("GST_GL_PLATFORM", "egl"),
+        ("GST_GL_WINDOW", "surfaceless"),
+        ("GST_GL_API", "gles2"),
+    ] {
+        if std::env::var_os(key).is_none() {
+            // SAFETY: nothing else runs yet
+            unsafe { std::env::set_var(key, value) };
+        }
+    }
     let store = Arc::new(settings::SettingsStore::load());
     let cfg = store.get();
     // The Argon ONE case's fan, power button and power cut
@@ -50,6 +63,7 @@ fn run() -> anyhow::Result<()> {
     // Outputs first, so the web server can reconfigure them from settings
     let overlay = overlay::Overlay::load(store.path().with_file_name("overlay.png"), &cfg.overlay);
     gstreamer::init()?;
+    output::look::init(store.path());
     let decoder = output::decoded::SharedDecoder::new();
     let player = GstPlayer::new(&cfg.display, Arc::clone(&overlay), Arc::clone(&decoder))?;
     let rtsp_server = Arc::new(RtspServer::new(&cfg.rtsp)?);

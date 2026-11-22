@@ -11,6 +11,59 @@ pub struct DisplaySettings {
     pub scaling: Scaling,
     pub rotate_180: bool,
     pub mirror: bool,
+    /// Colour grading on the HDMI picture
+    pub look: LookSettings,
+}
+
+/// A 3D LUT on the HDMI picture, graded on the GPU
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(default)]
+pub struct LookSettings {
+    pub enabled: bool,
+    /// A preset's id, or "custom" for the uploaded `.cube`
+    pub lut: String,
+    /// How much of the LUT, 0-100 %
+    pub strength: u8,
+    pub quality: LookQuality,
+}
+
+impl Default for LookSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            lut: "film".into(),
+            strength: 100,
+            quality: LookQuality::Speed,
+        }
+    }
+}
+
+impl LookSettings {
+    pub fn validate(&self) -> Result<(), String> {
+        let known = self.lut == crate::output::look::CUSTOM
+            || crate::output::look::PRESETS
+                .iter()
+                .any(|(id, _)| *id == self.lut);
+        if !known {
+            return Err(format!("There's no LUT called '{}'", self.lut));
+        }
+        if self.strength > 100 {
+            return Err("LUT strength must be 0-100%".into());
+        }
+        Ok(())
+    }
+}
+
+/// Where the grading happens: smaller is smooth at 60 fps on a Pi 4, full
+/// size is sharper but manages about 48
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum LookQuality {
+    /// 720p, scaled up by the display hardware
+    #[default]
+    Speed,
+    /// The video's own size
+    Quality,
 }
 
 impl Default for DisplaySettings {
@@ -21,6 +74,7 @@ impl Default for DisplaySettings {
             scaling: Scaling::Fit,
             rotate_180: false,
             mirror: false,
+            look: LookSettings::default(),
         }
     }
 }

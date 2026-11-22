@@ -87,6 +87,7 @@ pub(super) fn validate(s: &Settings) -> Result<(), String> {
         ));
     }
     s.overlay.validate()?;
+    s.display.look.validate()?;
     s.wifi.validate()?;
     s.ethernet.validate()?;
     s.rtsp.validate()?;

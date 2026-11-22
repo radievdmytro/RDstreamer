@@ -11,6 +11,7 @@ import type {
   NdiRuntime,
   OmtStatus,
   DisplayStatus,
+  LookStatus,
 } from "@/types/settings";
 import type { NetworkStatus, ScanResult, WifiCountries } from "@/types/network";
 import type { TailscaleStatus } from "@/types/tailscale";
@@ -179,6 +180,14 @@ export const api = {
   installNdiRuntime: () => request<void>("POST", "/ndi/runtime/install"),
   omt: () => request<OmtStatus>("GET", "/omt"),
   display: () => request<DisplayStatus>("GET", "/display"),
+  look: () => request<LookStatus>("GET", "/display/look"),
+  uploadLut: (cube: Blob) =>
+    request<{ title: string | null; size: number }>(
+      "PUT",
+      "/display/look/lut",
+      cube,
+    ),
+  removeLut: () => request<void>("DELETE", "/display/look/lut"),
   input: () => request<InputStatus>("GET", "/input"),
   /** Probes every device; not for polling */
   inputDevices: () => request<UvcDevice[]>("GET", "/input/devices"),

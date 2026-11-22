@@ -99,6 +99,16 @@ export interface Settings {
     scaling: "fit" | "fill";
     rotate_180: boolean;
     mirror: boolean;
+    /** A 3D LUT on the HDMI picture, graded on the GPU */
+    look: {
+      enabled: boolean;
+      /** A preset's id, or "custom" for the uploaded .cube */
+      lut: string;
+      /** 0-100 % */
+      strength: number;
+      /** speed: graded at 720p, 60 fps; quality: full size, about 48 fps */
+      quality: "speed" | "quality";
+    };
   };
   splash: {
     freeze_last_frame: boolean;
@@ -218,6 +228,14 @@ export interface DisplayMode {
   refresh: number;
   preferred: boolean;
   fits_screen: boolean;
+}
+
+export interface LookStatus {
+  presets: { id: string; label: string }[];
+  /** The uploaded .cube, if there is one */
+  custom: { title: string | null; size: number } | null;
+  /** GPU grading couldn't start on this device, and why */
+  error: string | null;
 }
 
 export interface DisplayStatus {

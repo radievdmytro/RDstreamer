@@ -1,6 +1,7 @@
 use gstreamer as gst;
 use gstreamer::prelude::*;
 use gstreamer_app::AppSrc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
@@ -22,6 +23,18 @@ const PIPELINE: &str = "appsrc name=src is-live=true block=false format=time \
     leaky-type=downstream max-buffers=1 ! \
     {crop}kmssink name=sink sync=false skip-vsync=true";
 
+// With a look: the image processor copies each picture into its own RGBA
+// buffer (straight from the decoder, the GPU held on to the decoder's few
+// buffers and it stalled after 16 pictures), the GPU grades it, and the
+// result goes to the screen as a dmabuf, without the processor touching it.
+// Tried on a Pi 4: 1080p manages about 48 fps, 720p a smooth 60
+const PIPELINE_LOOK: &str = "appsrc name=src is-live=true block=false format=time \
+    leaky-type=downstream max-buffers=1 ! \
+    {convert} ! video/x-raw,format=RGBA{size} ! \
+    queue max-size-buffers=2 max-size-bytes=0 max-size-time=0 leaky=downstream ! \
+    glupload ! rdlook ! gldownload ! video/x-raw(memory:DMABuf) ! \
+    {crop}kmssink name=sink sync=false skip-vsync=true";
+
 // DRM plane rotation bits
 const ROTATE_0: i32 = 0x1;
 const ROTATE_180: i32 = 0x4;
@@ -30,6 +43,9 @@ const REFLECT_X: i32 = 0x10;
 struct Running {
     pipeline: gst::Pipeline,
     sink: gst::Element,
+    /// Grading on the GPU, and whether that has failed
+    look: bool,
+    failed: Arc<AtomicBool>,
     /// Dropped before the pipeline stops, so nothing is handed to it
     subscription: Option<Subscription>,
 }
@@ -48,6 +64,9 @@ struct State {
     cfg: DisplaySettings,
     display: Option<Display>,
     running: Option<Running>,
+    /// The look failed on this device: shown without it until its settings
+    /// change
+    look_failed: bool,
 }
 
 pub struct GstPlayer {
@@ -74,6 +93,7 @@ impl GstPlayer {
                 },
                 display: None,
                 running: None,
+                look_failed: false,
             }),
         });
         // Watching before the first look, so a screen plugged in meanwhile
@@ -91,6 +111,7 @@ impl GstPlayer {
             let mut last_rendered: u64 = 0;
             loop {
                 thread::sleep(Duration::from_secs(1));
+                stats.look_fallback();
                 // Also catches the video changing size, e.g. 16:9 to 4:3
                 stats.refresh_logo();
                 let Some(sink) = stats.sink() else {
@@ -119,6 +140,39 @@ impl GstPlayer {
         let mut st = self.state.lock().unwrap();
         st.wanted = cfg.clone();
         self.show(&mut st)
+    }
+
+    /// The GPU couldn't grade: back to the plain picture rather than none
+    fn look_fallback(&self) {
+        let mut st = self.state.lock().unwrap();
+        let failed = st
+            .running
+            .as_ref()
+            .is_some_and(|r| r.look && r.failed.load(Ordering::Relaxed));
+        if !failed {
+            return;
+        }
+        eprintln!("[hdmi] the look failed on the GPU; showing the picture without it");
+        st.look_failed = true;
+        if let Some(r) = st.running.take() {
+            r.stop();
+        }
+        if let Err(e) = self.show(&mut st) {
+            eprintln!("[hdmi] {e}");
+        }
+    }
+
+    /// Whether the look is wanted and works here
+    pub fn look_error(&self) -> Option<String> {
+        if let Err(e) = crate::output::look::register() {
+            return Some(format!("GPU grading isn't available: {e}"));
+        }
+        let st = self.state.lock().unwrap();
+        st.look_failed.then(|| {
+            "The GPU couldn't grade the picture, so HDMI shows it without the look. \
+             The Logs page says why."
+                .to_string()
+        })
     }
 
     /// A screen came or went somewhere: let go of ours if it's gone or was
@@ -169,7 +223,16 @@ impl GstPlayer {
             return Ok(());
         }
 
+        // Another LUT or strength shows on the next picture; turning the
+        // look on or off, or its quality, needs another pipeline
+        crate::output::look::select(&cfg.look);
+        if st.cfg.look != cfg.look {
+            st.look_failed = false;
+        }
+        let look = cfg.look.enabled && !st.look_failed && crate::output::look::register().is_ok();
         let unchanged = st.running.is_some()
+            && st.running.as_ref().is_some_and(|r| r.look == look)
+            && st.cfg.look.quality == cfg.look.quality
             && st.cfg.mode == cfg.mode
             && st.cfg.scaling == cfg.scaling
             && st.cfg.rotate_180 == cfg.rotate_180
@@ -203,7 +266,7 @@ impl GstPlayer {
             .cloned()
             .ok_or("The screen has no active mode")?;
 
-        let (mut running, appsrc) = build(cfg, &mode, display.fd())?;
+        let (mut running, appsrc) = build(cfg, &mode, display.fd(), look)?;
         if let Err(e) = running.pipeline.set_state(gst::State::Playing) {
             running.stop();
             return Err(format!("Couldn't start HDMI output: {e}"));
@@ -341,7 +404,12 @@ fn video_area(screen: (u32, u32), video: (u32, u32), scaling: Scaling) -> Rect {
     }
 }
 
-fn build(cfg: &DisplaySettings, mode: &ModeInfo, fd: i32) -> Result<(Running, AppSrc), String> {
+fn build(
+    cfg: &DisplaySettings,
+    mode: &ModeInfo,
+    fd: i32,
+    look: bool,
+) -> Result<(Running, AppSrc), String> {
     // Fill crops in the display hardware: aspectratiocrop only attaches crop
     // metadata, which kmssink turns into the plane's source rectangle
     let crop = match cfg.scaling {
@@ -351,7 +419,25 @@ fn build(cfg: &DisplaySettings, mode: &ModeInfo, fd: i32) -> Result<(Running, Ap
             mode.width, mode.height
         ),
     };
-    let pipeline = gst::parse::launch(&PIPELINE.replace("{crop}", &crop))
+    let description = if look {
+        // The Pi's image processor; elsewhere, the processor does it
+        let convert = if gst::ElementFactory::find("v4l2convert").is_some() {
+            "v4l2convert output-io-mode=dmabuf-import"
+        } else {
+            "videoconvertscale"
+        };
+        let size = match cfg.look.quality {
+            crate::settings::LookQuality::Speed => ",height=720,pixel-aspect-ratio=1/1",
+            crate::settings::LookQuality::Quality => "",
+        };
+        PIPELINE_LOOK
+            .replace("{convert}", convert)
+            .replace("{size}", size)
+            .replace("{crop}", &crop)
+    } else {
+        PIPELINE.replace("{crop}", &crop)
+    };
+    let pipeline = gst::parse::launch(&description)
         .map_err(|e| format!("HDMI pipeline: {e}"))?
         .dynamic_cast::<gst::Pipeline>()
         .expect("Failed to cast to Pipeline");
@@ -374,12 +460,15 @@ fn build(cfg: &DisplaySettings, mode: &ModeInfo, fd: i32) -> Result<(Running, Ap
             .build(),
     );
 
+    let failed = Arc::new(AtomicBool::new(false));
     if let Some(bus) = pipeline.bus() {
-        bus.set_sync_handler(|_, msg| {
+        let failed = Arc::clone(&failed);
+        bus.set_sync_handler(move |_, msg| {
             use gst::MessageView;
             match msg.view() {
                 MessageView::Error(err) => {
                     eprintln!("[hdmi] error: {} ({:?})", err.error(), err.debug());
+                    failed.store(true, Ordering::Relaxed);
                 }
                 MessageView::Warning(w) => {
                     eprintln!("[hdmi] warning: {} ({:?})", w.error(), w.debug());
@@ -394,6 +483,8 @@ fn build(cfg: &DisplaySettings, mode: &ModeInfo, fd: i32) -> Result<(Running, Ap
         Running {
             pipeline,
             sink,
+            look,
+            failed,
             subscription: None,
         },
         appsrc,
