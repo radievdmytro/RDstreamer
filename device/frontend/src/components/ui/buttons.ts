@@ -3,7 +3,7 @@ const base =
 
 export const btn = {
   plain: `${base} border border-line bg-surface-2 text-muted hover:bg-surface-3 hover:text-fg`,
-  primary: `${base} bg-primary text-white hover:bg-primary-hover`,
+  primary: `${base} bg-primary text-on-primary hover:bg-primary-hover`,
   danger: `${base} border border-line bg-surface-2 text-down hover:border-down hover:bg-down hover:text-white`,
   text: `${base} text-muted hover:bg-surface-2 hover:text-fg`,
 };

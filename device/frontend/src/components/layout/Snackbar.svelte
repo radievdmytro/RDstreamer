@@ -10,8 +10,8 @@
   <div
     role="status"
     class="fixed right-0 left-0 z-30 flex justify-center px-4 md:left-56 {raised
-      ? 'bottom-20'
-      : 'bottom-5'}"
+      ? 'bottom-[calc(9rem+env(safe-area-inset-bottom))] md:bottom-20'
+      : 'bottom-[calc(5.25rem+env(safe-area-inset-bottom))] md:bottom-5'}"
   >
     <div
       class="flex max-w-lg items-center gap-2 rounded-lg py-1.5 pr-1.5 pl-4 text-[13px] shadow-lg

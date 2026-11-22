@@ -78,7 +78,7 @@
 <div class="flex flex-col gap-4">
   <div class="flex flex-wrap items-center justify-between gap-3">
     <p class="text-[12px] text-muted">
-      The latest lines from the YStreamer service.
+      The latest lines from the RDstreamer service.
     </p>
     <div class="flex items-center gap-4">
       <label
@@ -105,7 +105,7 @@
 
   {#if noSystemd}
     <p class="text-[13px] text-muted">
-      Logs need YStreamer to run under systemd.
+      Logs need RDstreamer to run under systemd.
     </p>
   {:else if error}
     <p class="text-[13px] text-down">{error}</p>

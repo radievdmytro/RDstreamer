@@ -5,6 +5,10 @@
 </script>
 
 <header class="flex flex-wrap items-center justify-between gap-3 pb-5">
-  <h1 class="text-2xl font-semibold tracking-tight text-fg">{title}</h1>
+  <h1
+    class="font-display text-[28px] leading-none font-bold tracking-[0.06em] text-fg uppercase"
+  >
+    {title}
+  </h1>
   {@render children?.()}
 </header>

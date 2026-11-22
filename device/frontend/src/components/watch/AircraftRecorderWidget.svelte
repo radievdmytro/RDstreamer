@@ -22,7 +22,7 @@
 
 {#if unit}
   <section
-    class="overflow-hidden rounded-xl border border-line bg-surface shadow-sm"
+    class="card overflow-hidden rounded-xl border border-line bg-surface"
   >
     <header
       class="flex items-center justify-between gap-3 border-b border-line bg-surface-2/40 px-4 py-3"

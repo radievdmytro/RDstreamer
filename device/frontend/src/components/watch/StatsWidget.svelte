@@ -18,12 +18,12 @@
 </script>
 
 <section
-  class="@container overflow-hidden rounded-xl border border-line bg-surface shadow-sm"
+  class="card @container overflow-hidden rounded-xl border border-line bg-surface"
 >
   <header
     class="flex items-center justify-between border-b border-line bg-surface-2/40 px-4 py-2"
   >
-    <h2 class="text-[13px] font-medium text-fg">Stats</h2>
+    <h2 class="font-display text-[15px] font-semibold text-fg">Stats</h2>
     <button
       type="button"
       onclick={onclose}

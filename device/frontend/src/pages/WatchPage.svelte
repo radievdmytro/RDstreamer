@@ -72,7 +72,7 @@
       <span class="relative flex h-1.5 w-1.5">
         {#if status === "playing"}
           <span
-            class="absolute inline-flex h-full w-full rounded-full bg-ok opacity-70"
+            class="breathe absolute inline-flex h-full w-full rounded-full bg-ok opacity-70"
           ></span>
         {/if}
         <span

@@ -135,7 +135,7 @@
     <p class="px-4 py-3 text-[13px] text-muted">Loading…</p>
   {:else if installing}
     <p class="px-4 py-3 text-[13px] text-muted">
-      Installing {installing}… Video stops while YStreamer restarts, and this
+      Installing {installing}… Video stops while RDstreamer restarts, and this
       page reloads when it's done.
     </p>
   {:else}
@@ -265,7 +265,7 @@
   title={confirm === "install"
     ? `Install ${status?.staged}?`
     : `Roll back to ${status?.previous}?`}
-  message="Video, streams and any recording stop while YStreamer restarts. Don't unplug the device until it's back."
+  message="Video, streams and any recording stop while RDstreamer restarts. Don't unplug the device until it's back."
   confirmLabel={confirm === "install" ? "Install" : "Roll back"}
   onconfirm={run}
 />

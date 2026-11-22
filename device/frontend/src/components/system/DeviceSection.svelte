@@ -73,7 +73,7 @@
     if (info.model) r.push(["Board", info.model]);
     if (info.os) r.push(["System", info.os]);
     if (info.kernel) r.push(["Kernel", info.kernel]);
-    r.push(["YStreamer", info.version]);
+    r.push(["RDstreamer", info.version]);
     if (info.serial) r.push(["Serial", info.serial]);
     if (info.uptime_secs !== null)
       r.push(["Uptime", duration(info.uptime_secs)]);
@@ -139,7 +139,8 @@
     if (!info) return NEW_ISSUE;
     const source = settings.saved?.input.mode;
     const lines: [string, string | null | undefined][] = [
-      ["YStreamer", info.version],
+      // The report goes to YStreamer's tracker, which knows it by that name
+      ["YStreamer (RDstreamer build)", info.version],
       [
         "Installed from",
         isImage === null
@@ -301,13 +302,13 @@
               k,
               v,
               false,
-              k === "YStreamer" ? () => developer.tap() : undefined,
+              k === "RDstreamer" ? () => developer.tap() : undefined,
             )}
           {/each}
           {#if power}
             {@render row("Power", power.text, power.bad)}
           {/if}
-          {@render link("Website", WEBSITE)}
+          {@render link("Based on YStreamer by YarosFPV (GPL-3.0)", WEBSITE)}
           {@render link("Source code", SOURCE)}
           <div
             class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t border-line px-4 py-2.5"

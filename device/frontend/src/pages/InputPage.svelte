@@ -333,7 +333,7 @@
   {#if input.mode === "dji_fpv"}
     <Card
       title="DJI Fly passthrough"
-      description="Keep using DJI Fly on an Android phone in a USB-A port while YStreamer streams. iPhone isn't supported."
+      description="Keep using DJI Fly on an Android phone in a USB-A port while RDstreamer streams. iPhone isn't supported."
     >
       {#snippet aside()}
         <Switch bind:checked={input.passthrough} label="DJI Fly passthrough" />

@@ -43,11 +43,11 @@
     Omit<Pending, "run"> & { done: string }
   > = {
     restart: {
-      title: "Restart YStreamer?",
+      title: "Restart RDstreamer?",
       message: "Video stops for a few seconds while the service restarts.",
       confirmLabel: "Restart",
       danger: false,
-      done: "Restarting YStreamer…",
+      done: "Restarting RDstreamer…",
     },
     "restart-usb": {
       title: "Restart the USB link?",
@@ -147,12 +147,12 @@
     <Card title="Service">
       {#if noSystemd}
         <p class="px-4 py-3 text-[12px] text-muted">
-          YStreamer isn't running under systemd, so it can't restart itself.
+          RDstreamer isn't running under systemd, so it can't restart itself.
           Install
           <code class="font-mono">{info?.unit}</code> to enable restarts and logs.
         </p>
       {/if}
-      <Field label="Restart YStreamer">
+      <Field label="Restart RDstreamer">
         <button
           type="button"
           class={btn.plain}
@@ -211,7 +211,7 @@
       <Field
         label="Developer mode"
         for="developer"
-        help="Turn it back on by tapping the YStreamer version in System → About 7 times."
+        help="Turn it back on by tapping the RDstreamer version in System → About 7 times."
       >
         <Switch
           id="developer"

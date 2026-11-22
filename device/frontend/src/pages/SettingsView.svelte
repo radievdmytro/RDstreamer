@@ -119,7 +119,7 @@
 
 {#if settings.dirty.length}
   <div
-    class="fixed right-0 bottom-0 left-0 z-20 border-t border-line bg-surface shadow-[0_-2px_8px_rgb(0_0_0/0.06)] md:left-56"
+    class="fixed right-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-0 z-20 border-t border-line bg-surface shadow-[0_-2px_8px_rgb(0_0_0/0.06)] md:bottom-0 md:left-56"
   >
     <div
       class="mx-auto flex w-full max-w-4xl items-center gap-3 px-4 py-3 sm:px-8"

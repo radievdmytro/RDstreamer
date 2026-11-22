@@ -61,7 +61,7 @@
   const cpu = $derived(
     lines([
       ["cpu", "Total", BLUE, true],
-      ["cpu_app", "YStreamer", ORANGE],
+      ["cpu_app", "RDstreamer", ORANGE],
       ["gpu", "GPU (3D)", PURPLE],
     ]),
   );
@@ -78,7 +78,7 @@
   const memory = $derived(
     lines([
       ["mem_used", "In use", BLUE, true],
-      ["mem_app", "YStreamer", ORANGE],
+      ["mem_app", "RDstreamer", ORANGE],
     ]),
   );
   const memTotal = $derived(

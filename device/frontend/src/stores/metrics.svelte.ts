@@ -11,15 +11,32 @@ class MetricsStore {
   #timer: ReturnType<typeof setInterval> | null = null;
   #busy = false;
 
+  /** How many parts of the page want readings: the status bar and the
+   *  Performance page both do, and one leaving mustn't stop the other */
+  #users = 0;
+
   start() {
+    this.#users++;
     if (this.#timer) return;
     this.#poll();
     this.#timer = setInterval(() => this.#poll(), 1000);
   }
 
   stop() {
+    this.#users = Math.max(0, this.#users - 1);
+    if (this.#users > 0) return;
     if (this.#timer) clearInterval(this.#timer);
     this.#timer = null;
+  }
+
+  /** The newest reading of a series, if there is one */
+  latest(name: string): number | null {
+    const column = this.series[name];
+    if (!column) return null;
+    for (let i = column.length - 1; i >= 0; i--) {
+      if (column[i] !== null) return column[i];
+    }
+    return null;
   }
 
   async #poll() {

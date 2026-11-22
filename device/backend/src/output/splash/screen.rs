@@ -12,11 +12,13 @@ pub const HEIGHT: u32 = 1080;
 const LOGO: &[u8] = include_bytes!("../../../assets/logo.svg");
 const LOGO_MIME: &str = "image/svg+xml";
 
-const BASE: &str = "#0b101a";
-const LINE: &str = "#273142";
-const FG: &str = "#f1f5f9";
-const MUTED: &str = "#94a3b8";
-const FAINT: &str = "#64748b";
+const BASE: &str = "#121214";
+const LINE: &str = "#2b2b30";
+const FG: &str = "#f4f4f5";
+const MUTED: &str = "#a1a1aa";
+const FAINT: &str = "#6f6f78";
+/// The orange of the RD logo
+const BRAND: &str = "#ffab00";
 const OK_SOFT: &str = "#86efac";
 const WARN_SOFT: &str = "#fdba74";
 const WARN: &str = "#f97316";
@@ -397,7 +399,7 @@ impl Screen {
             r#"<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{HEIGHT}" viewBox="0 0 {WIDTH} {HEIGHT}">
 <rect width="100%" height="100%" fill="{BASE}"/>
 <image x="{logo_x}" y="{LOGO_Y}" width="{LOGO_SIZE}" height="{LOGO_SIZE}" href="data:{LOGO_MIME};base64,{logo}"/>
-<text x="{cx}" y="{wordmark_y}" text-anchor="middle" font-family="{SANS}" font-size="92" font-weight="600" letter-spacing="-2" fill="{FG}">YStreamer</text>
+<text x="{cx}" y="{wordmark_y}" text-anchor="middle" font-family="{SANS}" font-size="92" font-weight="600" letter-spacing="-2" fill="{FG}">RD<tspan fill="{BRAND}">streamer</tspan></text>
 <text x="{cx}" y="{STATUS_Y}" text-anchor="middle" font-family="{SANS}" font-size="32" fill="{tone}">{status}</text>
 "#,
             logo_x = cx - LOGO_SIZE / 2,

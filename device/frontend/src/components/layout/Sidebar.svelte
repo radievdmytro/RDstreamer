@@ -118,7 +118,7 @@
 
     {#each NAV_GROUPS as group}
       <span
-        class="mt-5 mb-1.5 px-3 text-[11px] tracking-wide text-faint uppercase"
+        class="mt-5 mb-1.5 px-3 font-display text-[12px] font-semibold tracking-[0.14em] text-faint uppercase"
         >{group.label}</span
       >
       {#each group.pages.filter((p) => p.id !== "terminal" || terminalUsable) as p}
@@ -175,7 +175,12 @@
   >
     <div class="flex min-w-0 flex-col gap-0.5">
       <span class="flex items-center gap-2 text-[12px] text-muted">
-        <span class="h-1.5 w-1.5 shrink-0 rounded-full {status.dot}"></span>
+        <span
+          class="h-1.5 w-1.5 shrink-0 rounded-full {status.dot} {status.dot ===
+          'bg-ok'
+            ? 'breathe'
+            : ''}"
+        ></span>
         <span class="truncate" title={control.goggles?.code}>{status.text}</span
         >
       </span>
@@ -205,7 +210,7 @@
     aria-current={active ? "page" : undefined}
     class="flex items-center gap-3 rounded-md px-3 py-2 text-[13px] font-medium transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary
       {active
-      ? 'bg-surface-2 text-fg'
+      ? 'nav-active text-fg'
       : 'text-muted hover:bg-surface-2/60 hover:text-fg'}"
   >
     <p.icon

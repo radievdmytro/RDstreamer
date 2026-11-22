@@ -15,7 +15,7 @@
       <Unplug class="h-4 w-4 text-muted" aria-hidden="true" />
     </span>
     <div class="min-w-0">
-      <h2 class="text-[15px] font-semibold text-fg">Can't reach YStreamer</h2>
+      <h2 class="text-[15px] font-semibold text-fg">Can't reach RDstreamer</h2>
       <p class="truncate text-[12px] text-muted">{auth.unreachable}</p>
     </div>
   </div>

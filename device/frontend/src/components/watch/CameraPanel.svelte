@@ -148,14 +148,14 @@
 </script>
 
 <section
-  class="@container overflow-hidden rounded-xl border border-line bg-surface shadow-sm"
+  class="card @container overflow-hidden rounded-xl border border-line bg-surface"
 >
   <div
     class="flex items-center justify-between border-b border-line bg-surface-2/40 px-4 py-3"
   >
     <div class="flex items-center gap-2">
       <Camera class="h-4 w-4 text-muted" aria-hidden="true" />
-      <h2 class="text-[13px] font-medium text-fg">Camera</h2>
+      <h2 class="font-display text-[15px] font-semibold text-fg">Camera</h2>
     </div>
   </div>
 

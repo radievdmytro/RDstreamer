@@ -380,7 +380,11 @@
   </button>
 {/snippet}
 
-<div class="overflow-hidden rounded-xl border border-line bg-black shadow-sm">
+<div
+  class="overflow-hidden rounded-xl border bg-black shadow-sm transition-[box-shadow,border-color] duration-500 {isLive
+    ? 'viewfinder border-primary/40'
+    : 'border-line'}"
+>
   <!-- In theater mode a wide window would make the picture taller than the
        screen, so the height is capped and the picture letterboxed -->
   <div
@@ -438,13 +442,42 @@
       </dl>
     {/if}
 
+    {#if isLive && !isFullscreen}
+      <!-- Viewfinder corners, as on a camera's screen -->
+      <span
+        class="viewfinder-corner top-3 left-3 rounded-tl-md border-t-2 border-l-2"
+      ></span>
+      <span
+        class="viewfinder-corner top-3 right-3 rounded-tr-md border-t-2 border-r-2"
+      ></span>
+      <span
+        class="viewfinder-corner bottom-3 left-3 rounded-bl-md border-b-2 border-l-2"
+      ></span>
+      <span
+        class="viewfinder-corner right-3 bottom-3 rounded-br-md border-r-2 border-b-2"
+      ></span>
+    {/if}
+
     {#if !isLive}
-      <div class="absolute inset-0 grid place-items-center bg-black">
+      <!-- The picture while there's no video. Swap public/no-signal.webp for
+           another 16:9 image to change it -->
+      <div class="absolute inset-0 bg-black">
+        <img
+          src="/no-signal.webp"
+          alt=""
+          draggable="false"
+          class="h-full w-full object-cover select-none"
+        />
         <span
-          role="status"
-          aria-label={label}
-          class="h-8 w-8 animate-spin rounded-full border-2 border-white/15 border-t-white/70"
-        ></span>
+          class="absolute bottom-3 left-3 flex items-center gap-2 rounded-md bg-black/60 px-2.5 py-1 text-[11px] font-medium text-white/80 backdrop-blur-sm"
+        >
+          <span
+            role="status"
+            aria-label={label}
+            class="h-3 w-3 animate-spin rounded-full border-2 border-white/20 border-t-primary"
+          ></span>
+          {label}
+        </span>
       </div>
     {/if}
 

@@ -2,18 +2,24 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>YStreamer</title>
+    <link rel="icon" type="image/svg+xml" href="/rd-mark.svg" />
+    <meta name="theme-color" content="#121214" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <title>RDstreamer</title>
     <script>
       // Before the first paint, so a chosen theme doesn't flash the other one
       try {
         const theme = localStorage.getItem("ystreamer.theme");
-        if (theme === "light" || theme === "dark") {
-          document.documentElement.classList.add(theme);
-          document.documentElement.style.colorScheme = theme;
-        } else {
+        // Dark unless light or "auto" (follow the system) was chosen
+        if (theme === "auto") {
           document.documentElement.style.colorScheme = "light dark";
+        } else {
+          const t = theme === "light" ? "light" : "dark";
+          document.documentElement.classList.add(t);
+          document.documentElement.style.colorScheme = t;
         }
       } catch {}
     </script>

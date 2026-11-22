@@ -52,7 +52,7 @@
         title={o.blocked ?? undefined}
         class="relative z-10 rounded-md px-2 py-1.5 text-[13px] font-medium tabular-nums transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:pointer-events-none
           {o.value === value
-          ? 'text-white'
+          ? 'text-on-primary'
           : o.blocked
             ? 'cursor-not-allowed text-faint/50 line-through'
             : 'text-muted hover:text-fg'}"

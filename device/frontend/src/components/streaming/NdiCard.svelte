@@ -213,8 +213,8 @@
     <div class="px-4 py-3">
       <p class="text-[12px] text-warn">
         NDI's runtime is NDI's own software under NDI's licence, so it doesn't
-        come with YStreamer. The device can download it from NDI for you; you'll
-        see NDI's licence before anything is installed.
+        come with RDstreamer. The device can download it from NDI for you;
+        you'll see NDI's licence before anything is installed.
       </p>
       <div class="mt-3 flex flex-wrap gap-2">
         <button

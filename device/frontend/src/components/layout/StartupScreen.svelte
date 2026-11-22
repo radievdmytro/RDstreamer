@@ -7,7 +7,7 @@
 
 <div class="grid min-h-screen place-items-center px-4 py-10">
   <div class="flex w-full flex-col items-center gap-6">
-    <Brand />
+    <Brand full />
     {@render children()}
   </div>
 </div>

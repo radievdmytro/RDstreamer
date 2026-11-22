@@ -58,7 +58,7 @@ fn band_over_an_image_leaves_out_the_branding() {
         .over_image("data:image/png;base64,AAAA", Scaling::Fit);
 
     assert!(!svg.contains("SCAN TO JOIN"));
-    assert!(!svg.contains(">YStreamer</text>"));
+    assert!(!svg.contains("streamer</tspan>"));
 }
 
 #[test]

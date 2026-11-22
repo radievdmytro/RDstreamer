@@ -1,72 +1,90 @@
 @import "tailwindcss";
+@import "@fontsource/rajdhani/latin-600.css";
+@import "@fontsource/rajdhani/latin-700.css";
 
 @theme {
-  --color-base: #fcfcfc;
+  --color-base: #f5f5f6;
   --color-surface: #ffffff;
   --color-surface-2: #f0f0f2;
-  --color-surface-3: #e2e8f0;
+  --color-surface-3: #e4e4e7;
 
-  --color-line: #e2e8f0;
-  --color-line-strong: #cbd5e1;
+  --color-line: #e4e4e7;
+  --color-line-strong: #d4d4d8;
 
-  --color-fg: #22272a;
-  --color-muted: #64748b;
-  --color-faint: #94a3b8;
+  --color-fg: #18181b;
+  --color-muted: #55555e;
+  --color-faint: #9b9ba5;
 
-  --color-primary: #3d8bff;
-  --color-primary-hover: #2476f2;
-  --color-accent: #ea580c;
-  --color-accent-hover: #c2410c;
+  --color-primary: #e69500;
+  --color-primary-hover: #cc8400;
+  /* Text on the orange: dark, as white on it is hard to read */
+  --color-on-primary: #1c1400;
+  --color-accent: #0891b2;
+  --color-accent-hover: #0e7490;
 
   --color-ok: #16a34a;
-  --color-warn: #ea580c;
+  --color-warn: #ea5a0c;
   --color-down: #dc2626;
 
   --font-sans:
     ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
+  /* Headings and the name: squared and technical, like the logo's lettering */
+  --font-display: Rajdhani, ui-sans-serif, system-ui, sans-serif;
   --font-mono:
     ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
 }
 
+:root {
+  /* Strength of the background's orange glow and of the grain */
+  --glow: 0.1;
+  --grain: 0.025;
+}
+
 @media (prefers-color-scheme: dark) {
   :root:not(.light) {
-    --color-base: #111827;
-    --color-surface: #171e2d;
-    --color-surface-2: #1f2937;
-    --color-surface-3: #374151;
-    --color-line: #374151;
-    --color-line-strong: #4b5563;
-    --color-fg: #f1f5f9;
-    --color-muted: #94a3b8;
-    --color-faint: #64748b;
-    --color-primary: #3d8bff;
-    --color-primary-hover: #4a9eff;
-    --color-accent: #f97316;
-    --color-accent-hover: #fb923c;
-    --color-ok: #4ade80;
-    --color-warn: #f97316;
+    --color-base: #121214;
+    --color-surface: #1a1a1d;
+    --color-surface-2: #232327;
+    --color-surface-3: #2f2f34;
+    --color-line: #2b2b30;
+    --color-line-strong: #3f3f46;
+    --color-fg: #f4f4f5;
+    --color-muted: #a1a1aa;
+    --color-faint: #6f6f78;
+    --color-primary: #ffab00;
+    --color-primary-hover: #ffbd3d;
+    --color-on-primary: #1c1400;
+    --color-accent: #22d3ee;
+    --color-accent-hover: #67e8f9;
+    --color-ok: #34d399;
+    --color-warn: #ff7a45;
     --color-down: #f87171;
+    --glow: 0.16;
+    --grain: 0.04;
   }
 }
 
 :root.dark {
-  --color-base: #111827;
-  --color-surface: #171e2d;
-  --color-surface-2: #1f2937;
-  --color-surface-3: #374151;
-  --color-line: #374151;
-  --color-line-strong: #4b5563;
-  --color-fg: #f1f5f9;
-  --color-muted: #94a3b8;
-  --color-faint: #64748b;
-  --color-primary: #3d8bff;
-  --color-primary-hover: #4a9eff;
-  --color-accent: #f97316;
-  --color-accent-hover: #fb923c;
-  --color-ok: #4ade80;
-  --color-warn: #f97316;
+  --color-base: #121214;
+  --color-surface: #1a1a1d;
+  --color-surface-2: #232327;
+  --color-surface-3: #2f2f34;
+  --color-line: #2b2b30;
+  --color-line-strong: #3f3f46;
+  --color-fg: #f4f4f5;
+  --color-muted: #a1a1aa;
+  --color-faint: #6f6f78;
+  --color-primary: #ffab00;
+  --color-primary-hover: #ffbd3d;
+  --color-on-primary: #1c1400;
+  --color-accent: #22d3ee;
+  --color-accent-hover: #67e8f9;
+  --color-ok: #34d399;
+  --color-warn: #ff7a45;
   --color-down: #f87171;
+  --glow: 0.16;
+  --grain: 0.04;
 }
 
 @layer base {
@@ -77,7 +95,20 @@
   }
 
   body {
-    background-color: var(--color-base);
+    /* A warm glow from the corner where the logo sits, fading into grey */
+    background:
+      radial-gradient(
+        ellipse 70% 55% at 0% 0%,
+        rgb(255 171 0 / var(--glow)),
+        transparent 70%
+      ),
+      radial-gradient(
+        ellipse 50% 40% at 100% 100%,
+        rgb(255 171 0 / calc(var(--glow) * 0.45)),
+        transparent 70%
+      ),
+      var(--color-base);
+    background-attachment: fixed;
     color: var(--color-fg);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
@@ -183,5 +214,151 @@
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
+  }
+}
+
+/* Film grain over everything, too faint to notice until it's gone */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: var(--grain);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Frosted panels: the sidebar and the phone's top and bottom bars */
+.glass {
+  background-color: color-mix(in srgb, var(--color-surface) 72%, transparent);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+}
+
+/* Over busy content, like the phone's bottom bar: less see-through */
+.glass-strong {
+  background-color: color-mix(in srgb, var(--color-surface) 90%, transparent);
+}
+
+/* Cards: a hairline of light along the top edge, and a lift on hover */
+.card {
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-fg) 3%, transparent),
+    transparent 40%
+  );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--color-fg) 6%, transparent),
+    0 1px 2px rgb(0 0 0 / 0.2);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+@media (hover: hover) {
+  .card:hover {
+    transform: translateY(-1px);
+    border-color: var(--color-line-strong);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--color-fg) 8%, transparent),
+      0 10px 30px -12px rgb(0 0 0 / 0.55),
+      0 0 0 1px color-mix(in srgb, var(--color-primary) 8%, transparent);
+  }
+}
+
+/* The page you're on, lit in the logo's orange */
+.nav-active {
+  position: relative;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-primary) 16%, transparent),
+    color-mix(in srgb, var(--color-primary) 3%, transparent)
+  );
+  box-shadow: 0 0 24px -10px var(--color-primary);
+}
+
+.nav-active::before {
+  content: "";
+  position: absolute;
+  left: -0.75rem;
+  top: 0.4rem;
+  bottom: 0.4rem;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--color-primary);
+  box-shadow: 0 0 12px var(--color-primary);
+}
+
+/* Something live: the dot breathes */
+@keyframes breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-ok) 55%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 5px transparent;
+  }
+}
+
+.breathe {
+  animation: breathe 2s ease-in-out infinite;
+}
+
+/* Recording: a ring pulses out of the button */
+@keyframes rec-ring {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-down) 60%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 14px transparent;
+  }
+}
+
+.rec-ring {
+  animation: rec-ring 1.6s ease-out infinite;
+}
+
+/* Pages slide in when you move between them */
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.page-in {
+  animation: page-in 0.28s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+/* The live picture: viewfinder corners and a soft orange halo */
+.viewfinder {
+  box-shadow: 0 0 60px -20px
+    color-mix(in srgb, var(--color-primary) 60%, transparent);
+}
+
+.viewfinder-corner {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border-color: var(--color-primary);
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.font-display {
+  letter-spacing: 0.02em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .breathe,
+  .rec-ring,
+  .page-in {
+    animation: none;
+  }
+  .card,
+  .card:hover {
+    transform: none;
+    transition: none;
   }
 }

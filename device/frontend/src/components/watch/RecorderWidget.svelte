@@ -4,13 +4,11 @@
   const status = $derived(recording.status);
 </script>
 
-<section
-  class="overflow-hidden rounded-xl border border-line bg-surface shadow-sm"
->
+<section class="card overflow-hidden rounded-xl border border-line bg-surface">
   <header
     class="flex items-center justify-between border-b border-line bg-surface-2/40 px-4 py-3"
   >
-    <h2 class="text-[13px] font-medium text-fg">
+    <h2 class="font-display text-[15px] font-semibold text-fg">
       Recorder <span class="font-normal text-muted">· on this device</span>
     </h2>
     <a href="/recording/files" class="text-[12px] text-primary hover:underline">
@@ -29,7 +27,7 @@
       aria-label={recording.active ? "Stop recording" : "Start recording"}
       class="group grid h-12 w-12 shrink-0 place-items-center rounded-full border-2 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50
         {recording.active
-        ? 'border-down bg-down/10 hover:bg-down/20'
+        ? 'rec-ring border-down bg-down/10 hover:bg-down/20'
         : 'border-line-strong hover:border-down'}"
     >
       {#if recording.active}

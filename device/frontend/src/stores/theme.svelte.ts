@@ -5,9 +5,10 @@ const KEY = "ystreamer.theme";
 function load(): Theme {
   try {
     const saved = localStorage.getItem(KEY);
-    return saved === "light" || saved === "dark" ? saved : "auto";
+    // Dark unless chosen otherwise; "auto" follows the system
+    return saved === "light" || saved === "auto" ? saved : "dark";
   } catch {
-    return "auto";
+    return "dark";
   }
 }
 
@@ -17,7 +18,7 @@ class ThemeStore {
   set(theme: Theme) {
     this.value = theme;
     try {
-      if (theme === "auto") localStorage.removeItem(KEY);
+      if (theme === "dark") localStorage.removeItem(KEY);
       else localStorage.setItem(KEY, theme);
     } catch {}
     apply(theme);

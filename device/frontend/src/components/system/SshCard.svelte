@@ -88,7 +88,7 @@
   <Card title="SSH">
     {#if status.enabled && status.default_password}
       <p class="bg-warn/10 px-4 py-3 text-[12px] text-fg">
-        The password is still the one every YStreamer ships with, so anyone on
+        The password is still the one every RDstreamer ships with, so anyone on
         the network can log in. Change it below.
       </p>
     {/if}
