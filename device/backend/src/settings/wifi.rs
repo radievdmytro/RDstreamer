@@ -54,8 +54,8 @@ pub struct WifiApSettings {
 impl Default for WifiApSettings {
     fn default() -> Self {
         Self {
-            ssid: "YStreamer".into(),
-            password: "ystreamer".into(),
+            ssid: "RDstreamer".into(),
+            password: "RDstreamer".into(),
             channel: 6,
             address: "10.0.0.1".into(),
         }

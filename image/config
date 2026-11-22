@@ -4,7 +4,7 @@ RELEASE=trixie
 STAGE_LIST="stage0 stage1 stage2 stage-ystreamer"
 DEPLOY_COMPRESSION=xz
 
-TARGET_HOSTNAME=ystreamer
+TARGET_HOSTNAME=rdstreamer
 # The login for SSH, which stays off until switched on in the web interface
 FIRST_USER_NAME=ystreamer
 FIRST_USER_PASS=ystreamer

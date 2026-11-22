@@ -269,7 +269,7 @@ impl Default for NetworkSourceSettings {
     fn default() -> Self {
         Self {
             enabled: false,
-            name: "YStreamer".into(),
+            name: "RDstreamer".into(),
             max_height: 720,
             max_fps: 30,
         }
