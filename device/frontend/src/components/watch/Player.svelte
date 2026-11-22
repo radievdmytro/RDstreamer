@@ -10,6 +10,8 @@
   import { api } from "@/api/client";
   import { control } from "@/stores/control.svelte";
   import LogoOverlay from "@/components/watch/LogoOverlay.svelte";
+  import GradedView from "@/components/display/GradedView.svelte";
+  import type { Settings as AllSettings } from "@/types/settings";
   import BarChart3 from "@lucide/svelte/icons/bar-chart-3";
   import Maximize2 from "@lucide/svelte/icons/maximize-2";
   import Minimize2 from "@lucide/svelte/icons/minimize-2";
@@ -22,12 +24,15 @@
     showStats = $bindable(false),
     stats = $bindable([]),
     history = $bindable({ t: [], kbps: [], bufferMs: [] }),
+    graded = null,
   }: {
     status?: Status;
     theater?: boolean;
     showStats?: boolean;
     stats?: PlayerStat[];
     history?: PlayerHistory;
+    /** Draw the picture through the HDMI look (Display → Image preview) */
+    graded?: { display: AllSettings["display"]; split: number } | null;
   } = $props();
 
   const HISTORY = 120;
@@ -405,6 +410,14 @@
       }}
       class="h-full w-full object-contain"
     ></video>
+
+    {#if graded}
+      <GradedView
+        video={() => videoEl}
+        display={graded.display}
+        split={graded.split}
+      />
+    {/if}
 
     {#if control.overlay?.visible}
       <LogoOverlay

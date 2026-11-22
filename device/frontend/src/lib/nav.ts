@@ -100,6 +100,7 @@ export const SETTINGS_PAGES: NavPage[] = [
       { id: "hdmi", label: "HDMI", sections: ["display"] },
       { id: "splash", label: "Splash screen", sections: ["splash"] },
       { id: "logo", label: "Logo", sections: ["overlay"] },
+      { id: "image", label: "Image", sections: ["display"] },
     ],
   },
   {

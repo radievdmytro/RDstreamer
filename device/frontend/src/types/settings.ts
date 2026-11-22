@@ -99,6 +99,29 @@ export interface Settings {
     scaling: "fit" | "fill";
     rotate_180: boolean;
     mirror: boolean;
+    /** A 3D LUT on the HDMI picture, graded on the GPU */
+    look: {
+      enabled: boolean;
+      /** A preset's id, or "file:" and a library LUT's name */
+      lut: string;
+      /** 0-100 % */
+      strength: number;
+      /** For the look and dewarp both. speed: 720p, 60 fps; quality: full size, about 48 fps */
+      quality: "speed" | "quality";
+    };
+    /** Lens correction on the HDMI picture */
+    dewarp: {
+      enabled: boolean;
+      /** -100 to 100 % */
+      fisheye: number;
+      /** -100 to 100 % */
+      edge: number;
+      /** -50 to 100 % */
+      zoom: number;
+      /** -50 to 50 % */
+      offset_x: number;
+      offset_y: number;
+    };
   };
   splash: {
     freeze_last_frame: boolean;
@@ -218,6 +241,21 @@ export interface DisplayMode {
   refresh: number;
   preferred: boolean;
   fits_screen: boolean;
+}
+
+export interface LutFile {
+  /** "file:" and its name */
+  id: string;
+  name: string;
+  size: number;
+}
+
+export interface LookStatus {
+  presets: { id: string; label: string }[];
+  /** The LUT library */
+  files: LutFile[];
+  /** GPU grading couldn't start on this device, and why */
+  error: string | null;
 }
 
 export interface DisplayStatus {
