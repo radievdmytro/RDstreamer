@@ -125,7 +125,10 @@ jobs:
   release:
     name: Publish
     needs: [package, image]
-    if: always() && inputs.release && needs.package.result == 'success' && needs.image.result != 'failure'
+    # Not after a cancelled or failed image: a release without one confuses
+    if: >-
+      always() && inputs.release && needs.package.result == 'success' &&
+      (needs.image.result == 'success' || (needs.image.result == 'skipped' && !inputs.image))
     runs-on: ubuntu-24.04
     permissions:
       contents: write
