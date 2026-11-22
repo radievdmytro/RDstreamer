@@ -155,17 +155,6 @@ pub fn router<S>(services: Services) -> Router<S> {
         .route("/ndi/runtime/install", post(streaming::ndi_runtime_install))
         .route("/omt", get(streaming::omt_status))
         .route("/display", get(display::display_status))
-        .route("/display/look", get(display::look_status))
-        .route(
-            "/display/look/lut",
-            put(display::look_upload).layer(DefaultBodyLimit::max(crate::output::look::MAX_FILE)),
-        )
-        .route(
-            "/display/look/lut/{id}",
-            axum::routing::delete(display::look_remove),
-        )
-        .route("/display/look/download", post(display::look_download))
-        .route("/display/look/atlas", get(display::look_atlas))
         .route("/input", get(streaming::input_status))
         .route("/input/devices", get(streaming::input_devices))
         .route("/input/toggle", post(input::toggle))

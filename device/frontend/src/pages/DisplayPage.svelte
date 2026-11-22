@@ -3,9 +3,6 @@
   import HdmiCard from "@/components/display/HdmiCard.svelte";
   import SplashCard from "@/components/display/SplashCard.svelte";
   import OverlayCard from "@/components/display/OverlayCard.svelte";
-  import LookCard from "@/components/display/LookCard.svelte";
-  import DewarpCard from "@/components/display/DewarpCard.svelte";
-  import PreviewCard from "@/components/display/PreviewCard.svelte";
   let {
     display = $bindable(),
     splash = $bindable(),
@@ -26,9 +23,5 @@
     <SplashCard bind:splash />
   {:else if tab === "logo"}
     <OverlayCard bind:overlay />
-  {:else if tab === "image"}
-    <PreviewCard {display} />
-    <LookCard bind:display />
-    <DewarpCard bind:display />
   {/if}
 </div>
