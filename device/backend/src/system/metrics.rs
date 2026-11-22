@@ -226,6 +226,9 @@ impl Sampler {
         if let Some(millidegrees) = number("/sys/class/thermal/thermal_zone0/temp") {
             put("temp", millidegrees / 1000.0);
         }
+        if let Some(speed) = crate::system::fan::current_speed() {
+            put("fan", f32::from(speed));
+        }
         if let Some(khz) = number("/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq") {
             put("freq", khz / 1000.0);
         }

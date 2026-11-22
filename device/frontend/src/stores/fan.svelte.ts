@@ -29,8 +29,10 @@ class FanStore {
     try {
       const s = await api.fan();
       this.#failures = 0;
-      this.status = s.available ? s : null;
-      if (!s.available && this.#timer) {
+      // Shown wherever there's a case, or fan control was switched off
+      const shown = s.control !== "no_case" || s.config.mode !== "auto";
+      this.status = shown ? s : null;
+      if (!shown && this.#timer) {
         this.#absent = true;
         clearInterval(this.#timer);
         this.#timer = null;

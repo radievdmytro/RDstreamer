@@ -65,7 +65,7 @@
     </a>
   {/if}
 
-  {#if fan.status}
+  {#if fan.status?.control === "driving"}
     <a
       href="/system/general"
       class="{chip} text-fg"

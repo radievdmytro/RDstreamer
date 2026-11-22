@@ -59,6 +59,7 @@ pub struct Services {
     pub overlay: Arc<crate::output::overlay::Overlay>,
     pub input: Arc<crate::input::InputState>,
     pub metrics: Arc<crate::system::metrics::Metrics>,
+    pub fan: Arc<crate::system::fan::Fan>,
     pub uvc: Arc<crate::input::uvc::UvcSource>,
     pub legacy: Arc<crate::input::legacy::LegacySource>,
     pub rtmp_input: Arc<crate::input::rtmp::RtmpSource>,
@@ -99,6 +100,7 @@ pub fn router<S>(services: Services) -> Router<S> {
         .route("/system/ssh", get(system::ssh_status).put(system::ssh_set))
         .route("/system/ssh/password", put(system::ssh_password))
         .route("/system/fan", get(system::fan_status).put(system::fan_set))
+        .route("/system/fan/take-over", post(system::fan_take_over))
         .route("/system/update", get(system::update_status))
         .route(
             "/system/update/package",

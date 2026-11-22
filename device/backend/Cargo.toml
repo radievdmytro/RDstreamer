@@ -23,6 +23,17 @@ assets = [
         "usr/share/ystreamer/",
         "644",
     ],
+    # The Argon ONE case: I2C for its fan, and its power cut at shutdown
+    [
+        "../packaging/modules-load.conf",
+        "usr/lib/modules-load.d/ystreamer.conf",
+        "644",
+    ],
+    [
+        "../packaging/argon-shutdown",
+        "usr/lib/systemd/system-shutdown/ystreamer-argon",
+        "755",
+    ],
 ]
 maintainer-scripts = "../packaging/debian"
 systemd-units = { unit-scripts = "../packaging", restart-after-upgrade = true }

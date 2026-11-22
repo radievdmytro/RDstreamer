@@ -1,16 +1,27 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { api, message } from "@/api/client";
-  import type { FanPoint, FanStatus } from "@/types/system";
+  import type { FanConfig, FanMode, FanPoint, FanStatus } from "@/types/system";
   import { snackbar } from "@/stores/snackbar.svelte";
   import Card from "@/components/ui/Card.svelte";
   import Field from "@/components/ui/Field.svelte";
+  import Switch from "@/components/ui/Switch.svelte";
+  import Segmented from "@/components/ui/Segmented.svelte";
+  import ConfirmDialog from "@/components/ui/ConfirmDialog.svelte";
   import { btn } from "@/components/ui/buttons";
+
+  const MODES: { label: string; value: FanMode }[] = [
+    { label: "Auto", value: "auto" },
+    { label: "On", value: "on" },
+    { label: "Off", value: "off" },
+  ];
 
   let status = $state<FanStatus | null>(null);
   /** The curve being edited; null while it just follows the device */
   let draft = $state<FanPoint[] | null>(null);
   let saving = $state(false);
+  let takingOver = $state(false);
+  let confirmTakeOver = $state(false);
   let timer: ReturnType<typeof setInterval> | null = null;
 
   async function refresh() {
@@ -23,24 +34,57 @@
 
   onMount(() => {
     refresh();
-    timer = setInterval(refresh, 5000);
+    timer = setInterval(refresh, 3000);
   });
   onDestroy(() => {
     if (timer) clearInterval(timer);
   });
 
-  const points = $derived(draft ?? status?.curve ?? []);
+  // Shown on a device with the case, or where fan control was switched off
+  const shown = $derived(
+    !!status && (status.control !== "no_case" || status.config.mode !== "auto"),
+  );
+  const driving = $derived(status?.control === "driving");
+  const points = $derived(draft ?? status?.config.curve ?? []);
   const changed = $derived(
     draft !== null &&
-      JSON.stringify(sorted(draft)) !== JSON.stringify(status?.curve ?? []),
+      JSON.stringify(sorted(draft)) !==
+        JSON.stringify(status?.config.curve ?? []),
   );
 
   function sorted(list: FanPoint[]) {
     return [...list].sort((a, b) => a.temp_c - b.temp_c);
   }
 
+  async function save(change: Partial<FanConfig>, done?: string) {
+    if (!status || saving) return;
+    saving = true;
+    try {
+      status = await api.setFan({ ...status.config, ...change });
+      if (change.curve) draft = null;
+      if (done) snackbar.show(done);
+    } catch (e) {
+      snackbar.show(message(e), true);
+      await refresh();
+    } finally {
+      saving = false;
+    }
+  }
+
+  async function takeOver() {
+    takingOver = true;
+    try {
+      status = await api.fanTakeOver();
+      snackbar.show("RDstreamer runs the fan now; argononed is off");
+    } catch (e) {
+      snackbar.show(message(e), true);
+    } finally {
+      takingOver = false;
+    }
+  }
+
   function edit(change: (list: FanPoint[]) => void) {
-    const list = (draft ?? status?.curve ?? []).map((p) => ({ ...p }));
+    const list = points.map((p) => ({ ...p }));
     change(list);
     draft = list;
   }
@@ -85,76 +129,99 @@
     return null;
   });
 
-  async function save() {
-    if (!draft || problem || saving) return;
-    saving = true;
-    try {
-      status = await api.setFan(sorted(draft));
-      draft = null;
-      snackbar.show("Fan curve saved");
-    } catch (e) {
-      snackbar.show(message(e), true);
-      await refresh();
-    } finally {
-      saving = false;
-    }
-  }
-
   // The curve as a step line, with the temperature now
   const W = 320;
   const H = 120;
+  const clampT = (t: number) =>
+    status
+      ? Math.min(Math.max(t, status.limits.min_c), status.limits.max_c)
+      : t;
   const x = (t: number) =>
     status
-      ? ((t - status.limits.min_c) /
+      ? ((clampT(t) - status.limits.min_c) /
           (status.limits.max_c - status.limits.min_c)) *
         W
       : 0;
-  const y = (s: number) => H - (s / 100) * H;
+  const y = (s: number) => H - (Math.min(Math.max(s, 0), 100) / 100) * H;
   const path = $derived.by(() => {
-    if (!status) return "";
-    const { min_c, max_c } = status.limits;
     let d = `M0,${y(0)}`;
-    for (const p of sorted(points)) {
-      const t = Math.min(Math.max(p.temp_c, min_c), max_c);
-      d += ` H${x(t)} V${y(Math.min(Math.max(p.speed, 0), 100))}`;
-    }
+    for (const p of sorted(points)) d += ` H${x(p.temp_c)} V${y(p.speed)}`;
     return d + ` H${W}`;
   });
 </script>
 
-{#if status?.available}
+{#if status && shown}
   <Card
     title="Cooling fan"
-    description="The Argon ONE case's fan, run by its argononed service"
+    description="The Argon ONE case: fan, power button and power cut, run by RDstreamer"
   >
-    {#if !status.active}
+    {#if status.control === "argononed"}
+      <div
+        class="flex flex-wrap items-center justify-between gap-3 bg-primary/10 px-4 py-3 text-[12px] text-fg"
+      >
+        <span>
+          Argon40's own service (argononed) runs the case now, so RDstreamer
+          leaves it alone. Switch it off to run everything from here.
+        </span>
+        <button
+          type="button"
+          class={btn.primary}
+          disabled={takingOver}
+          onclick={() => (confirmTakeOver = true)}
+        >
+          {takingOver ? "Switching…" : "Run it from RDstreamer"}
+        </button>
+      </div>
+    {:else if status.control === "hat"}
       <p class="bg-warn/10 px-4 py-3 text-[12px] text-fg">
-        The fan service isn't running, so the fan isn't being controlled. The
-        Logs page or <span class="font-mono">journalctl -u argononed</span> may say
-        why.
+        A HAT is fitted, and it may be what answers at the case's address, so
+        Auto leaves it alone. If this is an Argon ONE case, choose On.
       </p>
+    {:else if status.control === "no_case" && status.config.mode === "on"}
+      <p class="bg-warn/10 px-4 py-3 text-[12px] text-fg">
+        Nothing answers at the case's address (0x1a on I2C bus 1). Check that
+        I2C is on, and reboot after the first install.
+      </p>
+    {/if}
+    {#if status.error}
+      <p class="bg-down/10 px-4 py-3 text-[12px] text-down">{status.error}</p>
     {/if}
 
     <Field
       label="Now"
-      help="The fan can't report its speed; this is what the curve asks of it."
+      help={driving
+        ? "What RDstreamer sends the fan. The case can't report its speed back."
+        : undefined}
     >
       <span class="text-[13px] text-fg tabular-nums">
         {status.temp_c === null ? "—" : `${status.temp_c.toFixed(1)} °C`}
         ·
-        {status.speed === null
-          ? "—"
+        {!driving || status.speed === null
+          ? "fan not run from here"
           : status.speed === 0
             ? "fan off"
             : `fan ${status.speed}%`}
       </span>
     </Field>
 
+    <Field
+      label="Fan control"
+      help="Auto runs the case when it's found and no HAT is fitted. Off leaves it alone."
+    >
+      <div class="w-full sm:w-64">
+        <Segmented
+          options={MODES}
+          value={status.config.mode}
+          onchange={(mode) => save({ mode })}
+        />
+      </div>
+    </Field>
+
     <div class="px-4 py-3">
       <svg
         viewBox="-2 -4 {W + 4} {H + 8}"
-        class="h-32 w-full text-primary"
         preserveAspectRatio="none"
+        class="h-32 w-full text-primary"
         role="img"
         aria-label="Fan speed by temperature"
       >
@@ -166,6 +233,7 @@
             y2={y(s)}
             class="stroke-line"
             stroke-width="1"
+            vector-effect="non-scaling-stroke"
           />
         {/each}
         <path
@@ -177,18 +245,8 @@
         />
         {#if status.temp_c !== null}
           <line
-            x1={x(
-              Math.min(
-                Math.max(status.temp_c, status.limits.min_c),
-                status.limits.max_c,
-              ),
-            )}
-            x2={x(
-              Math.min(
-                Math.max(status.temp_c, status.limits.min_c),
-                status.limits.max_c,
-              ),
-            )}
+            x1={x(status.temp_c)}
+            x2={x(status.temp_c)}
             y1="0"
             y2={H}
             class="stroke-accent"
@@ -240,40 +298,94 @@
         {/each}
       </div>
       <p class="mt-2 text-[12px] text-muted">
-        Below the first point the fan is off. Saving restarts the fan service;
-        if it doesn't come back up, the previous curve is put back.
+        Below the first point the fan is off. It speeds up at once and slows
+        down only after 30 s, so it doesn't hunt around a threshold.
       </p>
       {#if problem}
         <p class="mt-2 text-[13px] text-down">{problem}</p>
       {/if}
+      <div class="mt-3 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          class={btn.plain}
+          disabled={points.length >= status.limits.max_points}
+          onclick={addPoint}>Add point</button
+        >
+        <button
+          type="button"
+          class={btn.plain}
+          onclick={() =>
+            (draft = status
+              ? status.limits.quiet.map((p) => ({ ...p }))
+              : null)}>Quiet preset</button
+        >
+        <span class="flex-1"></span>
+        {#if draft !== null}
+          <button type="button" class={btn.text} onclick={() => (draft = null)}
+            >Cancel</button
+          >
+        {/if}
+        <button
+          type="button"
+          class={btn.primary}
+          disabled={!changed || !!problem || saving}
+          onclick={() =>
+            save({ curve: sorted(draft ?? []) }, "Fan curve saved")}
+          >{saving ? "Saving…" : "Save curve"}</button
+        >
+      </div>
     </div>
 
-    <div class="flex flex-wrap items-center gap-2 px-4 py-3">
-      <button
-        type="button"
-        class={btn.plain}
-        disabled={points.length >= status.limits.max_points}
-        onclick={addPoint}>Add point</button
-      >
-      <button
-        type="button"
-        class={btn.plain}
-        onclick={() =>
-          (draft = status ? status.limits.quiet.map((p) => ({ ...p })) : null)}
-        >Quiet preset</button
-      >
-      <span class="flex-1"></span>
-      {#if draft !== null}
-        <button type="button" class={btn.text} onclick={() => (draft = null)}
-          >Cancel</button
-        >
-      {/if}
-      <button
-        type="button"
-        class={btn.primary}
-        disabled={!changed || !!problem || saving}
-        onclick={save}>{saving ? "Saving…" : "Save curve"}</button
-      >
-    </div>
+    <Field
+      label="Power button"
+      for="fan-button"
+      help={status.config.power_button && driving && !status.power_button
+        ? "GPIO4 is in use by another button, so the case's button isn't heard."
+        : "Double tap: reboot. Hold 3 s: power off. Recordings are finished first."}
+    >
+      <Switch
+        id="fan-button"
+        disabled={saving}
+        bind:checked={
+          () => status?.config.power_button ?? true,
+          (on) => save({ power_button: on })
+        }
+      />
+    </Field>
+    <Field
+      label="Cut the power after power-off"
+      for="fan-cut"
+      help="The case switches itself off once the Pi has shut down."
+    >
+      <Switch
+        id="fan-cut"
+        disabled={saving}
+        bind:checked={
+          () => status?.config.power_cut ?? true,
+          (on) => save({ power_cut: on })
+        }
+      />
+    </Field>
+    <Field
+      label="Spin-up kick"
+      for="fan-kick"
+      help="Full speed for a second before a slow speed, for fans that don't start slowly from standstill."
+    >
+      <Switch
+        id="fan-kick"
+        disabled={saving}
+        bind:checked={
+          () => status?.config.spin_up ?? false, (on) => save({ spin_up: on })
+        }
+      />
+    </Field>
   </Card>
+
+  <ConfirmDialog
+    bind:open={confirmTakeOver}
+    title="Run the case from RDstreamer?"
+    message="argononed is stopped and switched off for good; its fan curve is brought over if it fits. The fan, the power button and the power cut are then run from here."
+    confirmLabel="Switch over"
+    onconfirm={takeOver}
+  />
 {/if}

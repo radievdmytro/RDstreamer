@@ -19,7 +19,7 @@ import type { WireguardStatus } from "@/types/wireguard";
 import type {
   SshStatus,
   FanStatus,
-  FanPoint,
+  FanConfig,
   SystemAction,
   SystemInfo,
   Release,
@@ -137,8 +137,9 @@ export const api = {
   setSshPassword: (password: string) =>
     request<SshStatus>("PUT", "/system/ssh/password", { password }),
   fan: () => request<FanStatus>("GET", "/system/fan"),
-  setFan: (points: FanPoint[]) =>
-    request<FanStatus>("PUT", "/system/fan", { points }),
+  setFan: (config: FanConfig) =>
+    request<FanStatus>("PUT", "/system/fan", config),
+  fanTakeOver: () => request<FanStatus>("POST", "/system/fan/take-over"),
   recording: () => request<RecordingStatus>("GET", "/recording"),
   recordStart: () => request<RecordingStatus>("POST", "/recording/start"),
   recordStop: () => request<RecordingStatus>("POST", "/recording/stop"),

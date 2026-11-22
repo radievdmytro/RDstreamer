@@ -63,14 +63,31 @@ export interface FanPoint {
   speed: number;
 }
 
-export interface FanStatus {
-  /** argononed (the Argon ONE case's fan service) is installed */
-  available: boolean;
-  active: boolean;
+export type FanMode = "auto" | "on" | "off";
+
+/** Who runs the Argon ONE case's fan now */
+export type FanControl = "driving" | "argononed" | "off" | "hat" | "no_case";
+
+export interface FanConfig {
+  mode: FanMode;
   curve: FanPoint[];
+  /** Double tap reboots, a 3 s hold powers off */
+  power_button: boolean;
+  /** The case switches the power off after the Pi powers off */
+  power_cut: boolean;
+  /** Full speed for a second before a slow speed from standstill */
+  spin_up: boolean;
+}
+
+export interface FanStatus {
+  control: FanControl;
+  config: FanConfig;
   temp_c: number | null;
-  /** What the curve asks of the fan now; the fan can't be read back */
+  /** What was last sent to the fan, while RDstreamer runs it */
   speed: number | null;
+  /** The power button is being listened to */
+  power_button: boolean;
+  error: string | null;
   limits: {
     max_points: number;
     min_c: number;

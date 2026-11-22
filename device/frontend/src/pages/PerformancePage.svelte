@@ -85,6 +85,7 @@
     s.mem_total?.findLast((v) => v !== null) ?? undefined,
   );
   const temperature = $derived(lines([["temp", "Processor", RED, true]]));
+  const fanSpeed = $derived(lines([["fan", "Fan", BLUE, true]]));
   const clock = $derived(lines([["freq", "Clock", TEAL, true]]));
   const frameRate = $derived(
     lines([
@@ -193,6 +194,7 @@
       {@render chart("Processor cores", cores, percent, 100)}
       {@render chart("Memory", memory, megabytes, memTotal)}
       {@render chart("Temperature", temperature, degrees, 90, 30)}
+      {@render chart("Cooling fan", fanSpeed, percent, 100)}
       {@render chart("Frame rate", frameRate, fps)}
       {@render chart("Video bitrate", bitrate, rate)}
       {@render chart("Network sent", sent, rate)}

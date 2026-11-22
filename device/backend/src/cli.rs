@@ -41,6 +41,10 @@ pub enum Command {
     Reset {
         confirmed: bool,
     },
+    /// Run by the system-shutdown hook: the Argon ONE case's last word
+    ArgonShutdown {
+        kind: String,
+    },
 }
 
 impl Command {
@@ -60,6 +64,9 @@ impl Command {
             ["password", "--clear"] => Self::Password { clear: true },
             ["reset"] => Self::Reset { confirmed: false },
             ["reset", "-y" | "--yes"] => Self::Reset { confirmed: true },
+            ["argon-shutdown", kind] => Self::ArgonShutdown {
+                kind: kind.to_string(),
+            },
             [command, ..] if !KNOWN.contains(command) => {
                 return Err(format!("Unknown command '{command}'"));
             }
@@ -70,8 +77,16 @@ impl Command {
     }
 }
 
-const KNOWN: [&str; 8] = [
-    "run", "help", "version", "status", "restart", "logs", "password", "reset",
+const KNOWN: [&str; 9] = [
+    "run",
+    "help",
+    "version",
+    "status",
+    "restart",
+    "logs",
+    "password",
+    "reset",
+    "argon-shutdown",
 ];
 
 /// The exit code. `Run` isn't handled here
@@ -93,6 +108,7 @@ pub fn execute(command: Command) -> i32 {
         Command::Logs { follow } => logs(follow),
         Command::Password { clear } => as_root().and_then(|()| password(clear)),
         Command::Reset { confirmed } => as_root().and_then(|()| reset_settings(confirmed)),
+        Command::ArgonShutdown { kind } => crate::system::fan::shutdown_hook(&kind),
     };
     match result {
         Ok(()) => 0,

@@ -183,22 +183,24 @@ pub(super) async fn ssh_password(
     Ok(Json(system::ssh::status(sv.store.path()).await))
 }
 
-pub(super) async fn fan_status() -> impl IntoResponse {
-    Json(system::fan::status().await)
+pub(super) async fn fan_status(State(sv): State<Services>) -> impl IntoResponse {
+    Json(sv.fan.status())
 }
 
-#[derive(Deserialize)]
-pub(super) struct FanCurve {
-    points: Vec<system::fan::Point>,
+pub(super) async fn fan_set(
+    State(sv): State<Services>,
+    Json(config): Json<system::fan::FanConfig>,
+) -> Result<impl IntoResponse, ApiError> {
+    sv.fan.set_config(config).map_err(bad)?;
+    Ok(Json(sv.fan.status()))
 }
 
-pub(super) async fn fan_set(Json(req): Json<FanCurve>) -> Result<impl IntoResponse, ApiError> {
-    if !system::fan::status().await.available {
-        return Err(bad("The Argon ONE fan service (argononed) isn't installed"));
-    }
-    system::fan::validate(&req.points).map_err(bad)?;
-    system::fan::set(&req.points).await.map_err(failed)?;
-    Ok(Json(system::fan::status().await))
+/// Switches Argon40's argononed off and runs the case from here
+pub(super) async fn fan_take_over(
+    State(sv): State<Services>,
+) -> Result<impl IntoResponse, ApiError> {
+    sv.fan.take_over().await.map_err(failed)?;
+    Ok(Json(sv.fan.status()))
 }
 
 pub(super) async fn system_action(

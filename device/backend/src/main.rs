@@ -44,6 +44,8 @@ fn main() -> anyhow::Result<()> {
 fn run() -> anyhow::Result<()> {
     let store = Arc::new(settings::SettingsStore::load());
     let cfg = store.get();
+    // The Argon ONE case's fan, power button and power cut
+    let fan = system::fan::Fan::start(Arc::clone(&store));
 
     // Outputs first, so the web server can reconfigure them from settings
     let overlay = overlay::Overlay::load(store.path().with_file_name("overlay.png"), &cfg.overlay);
@@ -157,6 +159,7 @@ fn run() -> anyhow::Result<()> {
         splash: Arc::clone(&splash),
         input: Arc::clone(&input),
         metrics,
+        fan,
         uvc,
         legacy,
         rtmp_input,

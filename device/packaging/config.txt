@@ -1,2 +1,4 @@
 dtoverlay=dwc2,dr_mode=peripheral
 gpu_mem=256
+# The Argon ONE case: its fan controller is on this bus
+dtparam=i2c_arm=on
