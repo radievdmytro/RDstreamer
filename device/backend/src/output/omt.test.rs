@@ -1,6 +1,9 @@
 use super::*;
 
+// Used by some toolchains' expansions and not others
+#[allow(unused_imports)]
 use gstreamer as gst;
+#[allow(unused_imports)]
 use gstreamer::prelude::*;
 use std::io::ErrorKind;
 use std::sync::atomic::AtomicU16;
