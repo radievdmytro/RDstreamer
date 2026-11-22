@@ -1,0 +1,44 @@
+name: Edit a release
+
+# Actions → Edit a release → Run workflow: renames a release and rewrites
+# its description, or deletes it (with its tag)
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The release's tag, e.g. rd-0.1.0-rd.20261122-6
+        required: true
+      title:
+        description: New name (empty keeps it)
+        required: false
+      notes:
+        description: New description (empty keeps it)
+        required: false
+      delete:
+        description: Delete this release and its tag instead
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  edit:
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      TAG: ${{ inputs.tag }}
+      TITLE: ${{ inputs.title }}
+      NOTES: ${{ inputs.notes }}
+    steps:
+      - name: Edit
+        run: |
+          if [ "${{ inputs.delete }}" = true ]; then
+            gh release delete "$TAG" --repo "$REPO" --yes --cleanup-tag
+            exit 0
+          fi
+          args=()
+          [ -n "$TITLE" ] && args+=(--title "$TITLE")
+          [ -n "$NOTES" ] && args+=(--notes "$NOTES")
+          gh release edit "$TAG" --repo "$REPO" "${args[@]}"

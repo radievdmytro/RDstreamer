@@ -14,6 +14,12 @@ on:
         description: Publish as a GitHub release (files stay downloadable)
         type: boolean
         default: true
+      name:
+        description: "Release name, e.g. 1.1 · LUT + Dewarp (empty: the version and branch)"
+        required: false
+      notes:
+        description: What this release has, in a line (optional)
+        required: false
 
 permissions:
   contents: read
@@ -97,9 +103,13 @@ jobs:
         run: image/build.sh "$(ls package/*.deb)"
 
       - name: Name and check it
+        env:
+          NAME: ${{ inputs.name }}
         run: |
           src=$(ls image/deploy/*.img.xz | head -1)
-          dst="image/deploy/rdstreamer-${{ needs.package.outputs.version }}.img.xz"
+          # 1.1 from a name like "1.1 · LUT + Dewarp", so files tell apart
+          short=$(printf '%s' "$NAME" | awk '{print $1}' | tr -c 'A-Za-z0-9.\n-' '-')
+          dst="image/deploy/rdstreamer-${short:-${{ needs.package.outputs.version }}}.img.xz"
           mv "$src" "$dst"
           xz --test "$dst"
           ls -lh "$dst"
@@ -128,13 +138,30 @@ jobs:
       - name: Release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: rd-${{ needs.package.outputs.version }}-${{ github.run_number }}
+          NAME: ${{ inputs.name }}
+          NOTES: ${{ inputs.notes }}
+          VERSION: ${{ needs.package.outputs.version }}
+          BRANCH: ${{ github.ref_name }}
         run: |
           cd assets
           sha256sum * >SHA256SUMS
           cat SHA256SUMS
-          gh release create "$TAG" * \
+          if [ -n "$NAME" ]; then
+            title="RDstreamer $NAME"
+            # The name's first word (1.1, say) in the tag, so it says what it is
+            short=$(printf '%s' "$NAME" | awk '{print $1}' | tr -c 'A-Za-z0-9.\n-' '-')
+            tag="rd-$short-${{ github.run_number }}"
+          else
+            title="RDstreamer $VERSION ($BRANCH)"
+            tag="rd-$VERSION-${{ github.run_number }}"
+          fi
+          {
+            [ -n "$NOTES" ] && printf '%s\n\n' "$NOTES"
+            printf 'Branch `%s`, commit %s.\n\n' "$BRANCH" "${{ github.sha }}"
+            printf '%s\n' "Write the .img.xz to a microSD card with Raspberry Pi Imager (Use custom). Unsigned: the web interface's updater only accepts official YStreamer releases."
+          } >../notes.md
+          gh release create "$tag" * \
             --repo "${{ github.repository }}" \
             --target "${{ github.sha }}" \
-            --title "RDstreamer ${{ needs.package.outputs.version }}" \
-            --notes "RDstreamer, built from ${{ github.sha }}. Write the .img.xz to a microSD card with Raspberry Pi Imager (Use custom). Unsigned: the web interface's updater only accepts official YStreamer releases."
+            --title "$title" \
+            --notes-file ../notes.md
