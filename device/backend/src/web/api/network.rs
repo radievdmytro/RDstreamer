@@ -11,6 +11,17 @@ pub(super) async fn network_status(State(sv): State<Services>) -> impl IntoRespo
     Json(sv.network.status().await)
 }
 
+pub(super) async fn network_link() -> impl IntoResponse {
+    Json(crate::net::wifi_link::link().await)
+}
+
+pub(super) async fn network_survey() -> Result<impl IntoResponse, ApiError> {
+    crate::net::wifi_link::survey()
+        .await
+        .map(Json)
+        .map_err(failed)
+}
+
 pub(super) async fn network_countries() -> impl IntoResponse {
     Json(crate::net::network::countries().await)
 }

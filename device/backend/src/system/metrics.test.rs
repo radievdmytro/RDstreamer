@@ -70,3 +70,11 @@ fn a_snapshot_returns_only_newer_samples_and_fills_gaps() {
     // A number from before a restart gets everything
     assert_eq!(metrics.snapshot(99).t.len(), 3);
 }
+
+#[test]
+fn reads_the_firmwares_power_flags() {
+    assert_eq!(parse_throttled("throttled=0x50005\n"), Some(0x50005));
+    assert_eq!(parse_throttled("0\n"), Some(0));
+    assert_eq!(parse_throttled("50000"), Some(0x50000));
+    assert_eq!(parse_throttled("nonsense"), None);
+}

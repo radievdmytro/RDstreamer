@@ -14,7 +14,13 @@ import type {
   LookStatus,
   LutFile,
 } from "@/types/settings";
-import type { NetworkStatus, ScanResult, WifiCountries } from "@/types/network";
+import type {
+  NetworkStatus,
+  ScanResult,
+  WifiLink,
+  WifiSurvey,
+  WifiCountries,
+} from "@/types/network";
 import type { TailscaleStatus } from "@/types/tailscale";
 import type { MetricsSnapshot } from "@/types/metrics";
 import type { WireguardStatus } from "@/types/wireguard";
@@ -102,6 +108,8 @@ export const api = {
   reset: () => request<Saved>("POST", "/settings/reset"),
   network: () => request<NetworkStatus>("GET", "/network"),
   scan: () => request<ScanResult[]>("GET", "/network/scan"),
+  wifiLink: () => request<WifiLink>("GET", "/network/link"),
+  wifiSurvey: () => request<WifiSurvey>("GET", "/network/survey"),
   countries: () => request<WifiCountries>("GET", "/network/countries"),
   wireguard: () => request<WireguardStatus>("GET", "/wireguard"),
   wireguardImport: (conf: Blob) =>

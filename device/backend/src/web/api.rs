@@ -83,6 +83,8 @@ pub fn router<S>(services: Services) -> Router<S> {
         .route("/settings/{section}", put(settings::put_section))
         .route("/network", get(network::network_status))
         .route("/network/scan", get(network::network_scan))
+        .route("/network/link", get(network::network_link))
+        .route("/network/survey", get(network::network_survey))
         .route("/network/countries", get(network::network_countries))
         .route(
             "/wireguard",

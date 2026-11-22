@@ -143,6 +143,7 @@ struct Sampler {
     input_bytes: u64,
     input_pictures: u64,
     hdmi: Option<(u64, u64)>,
+    throttled: Option<u32>,
 }
 
 impl Sampler {
@@ -159,6 +160,7 @@ impl Sampler {
             input_bytes: 0,
             input_pictures: 0,
             hdmi: None,
+            throttled: None,
         };
         // Rates need a reading to compare with; this one isn't kept
         this.collect();
@@ -234,6 +236,14 @@ impl Sampler {
         }
         if let Some(alarm) = number("/sys/class/hwmon/hwmon1/in0_lcrit_alarm") {
             put("undervoltage", alarm);
+        }
+        // The firmware's power and heat flags (vcgencmd get_throttled);
+        // asked every few seconds, starting a program each second is waste
+        if self.seq.is_multiple_of(5) {
+            self.throttled = throttled();
+        }
+        if let Some(bits) = self.throttled {
+            put("throttled", bits as f32);
         }
         if let Some(load) =
             read("/proc/loadavg").and_then(|s| s.split_whitespace().next()?.parse::<f32>().ok())
@@ -332,6 +342,30 @@ impl Sampler {
         put("recording", self.sources.recorder.is_active() as u8 as f32);
         out
     }
+}
+
+/// Bit 0 under-voltage now, 1 frequency capped, 2 throttled, 3 soft
+/// temperature limit; bits 16-19 the same, at some point since boot
+fn throttled() -> Option<u32> {
+    let text = fs::read_to_string("/sys/devices/platform/soc/soc:firmware/get_throttled")
+        .ok()
+        .or_else(|| {
+            let out = std::process::Command::new("vcgencmd")
+                .arg("get_throttled")
+                .output()
+                .ok()?;
+            out.status
+                .success()
+                .then(|| String::from_utf8_lossy(&out.stdout).into_owned())
+        })?;
+    parse_throttled(&text)
+}
+
+/// "throttled=0x50005" from vcgencmd, or "50005" from sysfs
+fn parse_throttled(text: &str) -> Option<u32> {
+    let value = text.trim().trim_start_matches("throttled=");
+    let hex = value.trim_start_matches("0x");
+    u32::from_str_radix(hex, 16).ok()
 }
 
 /// `/proc/stat`: per processor, the ticks spent busy and in total

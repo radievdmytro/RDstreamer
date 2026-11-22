@@ -17,6 +17,7 @@
   import ConfirmDialog from "@/components/ui/ConfirmDialog.svelte";
   import TailscaleCard from "@/components/network/TailscaleCard.svelte";
   import WireguardCard from "@/components/network/WireguardCard.svelte";
+  import ChannelSurvey from "@/components/network/ChannelSurvey.svelte";
   import { btn } from "@/components/ui/buttons";
   let {
     wifi = $bindable(),
@@ -394,6 +395,8 @@
         </Field>
       {/if}
     </Card>
+
+    <ChannelSurvey bind:channel={wifi.ap.channel} {apOn} />
 
     <Card title="Phone over USB">
       <div class="flex flex-col gap-2 px-4 py-3 text-[13px] text-muted">

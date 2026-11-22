@@ -42,3 +42,39 @@ export interface WifiCountries {
   current: string | null;
   countries: { code: string; name: string }[];
 }
+
+/** What the WiFi radio is doing right now (GET /network/link) */
+export interface WifiLink {
+  role: "ap" | "client" | "off";
+  ssid: string | null;
+  channel: number | null;
+  /** As a client: the router's signal here */
+  signal_dbm: number | null;
+  bitrate_mbps: number | null;
+  /** As an access point: who is connected */
+  stations: {
+    mac: string;
+    name: string | null;
+    ip: string | null;
+    signal_dbm: number | null;
+    bitrate_mbps: number | null;
+  }[];
+  /** Where streams to the internet leave: wlan0, eth0, usb0... */
+  uplink: string | null;
+}
+
+/** 2.4 GHz networks around and how busy each channel is */
+export interface WifiSurvey {
+  networks: {
+    bssid: string;
+    ssid: string;
+    channel: number;
+    freq: number;
+    signal_dbm: number;
+  }[];
+  networks_5ghz: number;
+  channels: { channel: number; networks: number; load: number }[];
+  /** The clearest of 1, 6 and 11 */
+  best: number;
+  current: number | null;
+}
