@@ -56,3 +56,26 @@ export interface Release {
 }
 
 export type SystemAction = "restart" | "restart-usb" | "reboot" | "poweroff";
+
+/** From this temperature up, this fan speed in percent */
+export interface FanPoint {
+  temp_c: number;
+  speed: number;
+}
+
+export interface FanStatus {
+  /** argononed (the Argon ONE case's fan service) is installed */
+  available: boolean;
+  active: boolean;
+  curve: FanPoint[];
+  temp_c: number | null;
+  /** What the curve asks of the fan now; the fan can't be read back */
+  speed: number | null;
+  limits: {
+    max_points: number;
+    min_c: number;
+    max_c: number;
+    full_by_c: number;
+    quiet: FanPoint[];
+  };
+}

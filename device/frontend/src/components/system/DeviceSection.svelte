@@ -18,6 +18,7 @@
   import AccessCard from "@/components/system/AccessCard.svelte";
   import SshCard from "@/components/system/SshCard.svelte";
   import PowerCard from "@/components/system/PowerCard.svelte";
+  import FanCard from "@/components/system/FanCard.svelte";
   import { developer } from "@/stores/developer.svelte";
   import { settings } from "@/stores/settings.svelte";
   let {
@@ -285,6 +286,8 @@
     <AccessCard />
 
     <SshCard />
+
+    <FanCard />
 
     <PowerCard />
   {:else if tab === "about"}

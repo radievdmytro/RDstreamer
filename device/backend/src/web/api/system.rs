@@ -183,6 +183,24 @@ pub(super) async fn ssh_password(
     Ok(Json(system::ssh::status(sv.store.path()).await))
 }
 
+pub(super) async fn fan_status() -> impl IntoResponse {
+    Json(system::fan::status().await)
+}
+
+#[derive(Deserialize)]
+pub(super) struct FanCurve {
+    points: Vec<system::fan::Point>,
+}
+
+pub(super) async fn fan_set(Json(req): Json<FanCurve>) -> Result<impl IntoResponse, ApiError> {
+    if !system::fan::status().await.available {
+        return Err(bad("The Argon ONE fan service (argononed) isn't installed"));
+    }
+    system::fan::validate(&req.points).map_err(bad)?;
+    system::fan::set(&req.points).await.map_err(failed)?;
+    Ok(Json(system::fan::status().await))
+}
+
 pub(super) async fn system_action(
     State(sv): State<Services>,
     Path(action): Path<String>,

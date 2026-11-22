@@ -1,0 +1,51 @@
+name: Build .deb
+
+# Builds an unsigned arm64 package from any branch, for installing by hand:
+#   sudo apt install ./ystreamer_*.deb
+# Releases still go through release.yml, which signs them
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Package
+    runs-on: ubuntu-24.04-arm
+    container: debian:trixie
+    steps:
+      - name: Install build tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates curl git xz-utils build-essential dpkg-dev \
+            pkg-config openssl python3 \
+            libglib2.0-dev libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev libgstrtspserver-1.0-dev
+
+      - uses: actions/checkout@v7
+
+      - uses: jdx/mise-action@v5
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: device/backend
+          cache-bin: true
+      - name: Install cargo-deb
+        run: command -v cargo-deb || cargo install cargo-deb --locked
+
+      - name: Test the backend
+        run: mise run backend:test
+
+      - name: Build the package
+        run: |
+          mise run frontend:install
+          mise run device:deb
+          ls -l device/backend/target/debian/*.deb
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ystreamer-deb
+          path: device/backend/target/debian/*.deb
+          if-no-files-found: error
+          retention-days: 30

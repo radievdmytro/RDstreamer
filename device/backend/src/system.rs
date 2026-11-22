@@ -1,5 +1,6 @@
 pub mod button;
 pub mod drives;
+pub mod fan;
 pub mod metrics;
 pub mod reset;
 pub mod ssh;

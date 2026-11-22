@@ -98,6 +98,7 @@ pub fn router<S>(services: Services) -> Router<S> {
         .route("/system/logs", get(system::system_logs))
         .route("/system/ssh", get(system::ssh_status).put(system::ssh_set))
         .route("/system/ssh/password", put(system::ssh_password))
+        .route("/system/fan", get(system::fan_status).put(system::fan_set))
         .route("/system/update", get(system::update_status))
         .route(
             "/system/update/package",

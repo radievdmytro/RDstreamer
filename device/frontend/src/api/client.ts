@@ -18,6 +18,8 @@ import type { MetricsSnapshot } from "@/types/metrics";
 import type { WireguardStatus } from "@/types/wireguard";
 import type {
   SshStatus,
+  FanStatus,
+  FanPoint,
   SystemAction,
   SystemInfo,
   Release,
@@ -134,6 +136,9 @@ export const api = {
     request<SshStatus>("PUT", "/system/ssh", { enabled }),
   setSshPassword: (password: string) =>
     request<SshStatus>("PUT", "/system/ssh/password", { password }),
+  fan: () => request<FanStatus>("GET", "/system/fan"),
+  setFan: (points: FanPoint[]) =>
+    request<FanStatus>("PUT", "/system/fan", { points }),
   recording: () => request<RecordingStatus>("GET", "/recording"),
   recordStart: () => request<RecordingStatus>("POST", "/recording/start"),
   recordStop: () => request<RecordingStatus>("POST", "/recording/stop"),
