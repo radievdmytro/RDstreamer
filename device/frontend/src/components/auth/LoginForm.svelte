@@ -48,7 +48,7 @@
     type="text"
     name="username"
     autocomplete="username"
-    value="ystreamer"
+    value="rdstreamer"
     readonly
     hidden
   />
