@@ -191,6 +191,7 @@ pub fn start(
             let app = Router::new()
                 .route("/health", get(health))
                 .route("/time", get(time))
+                .route("/time/adjust", axum::routing::put(time_adjust))
                 .nest("/api", crate::web::api::router(services).merge(watching))
                 .fallback_service(
                     get(ui::serve).layer(tower_http::compression::CompressionLayer::new()),
@@ -363,6 +364,26 @@ async fn recording_watch(
 }
 
 /// The updater reads the version to tell that a new one has come up
+/// A correction the sync clock page adds to the device's time, shared by
+/// every screen showing it: set by hand when the Pi had no internet to set
+/// its clock. Gone on restart
+static CLOCK_ADJUST_MS: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
+
+#[derive(serde::Deserialize)]
+struct Adjust {
+    ms: i64,
+}
+
+async fn time_adjust(axum::Json(adjust): axum::Json<Adjust>) -> impl axum::response::IntoResponse {
+    // A week either way is plenty for a clock that's merely off
+    const LIMIT: i64 = 7 * 24 * 3600 * 1000;
+    CLOCK_ADJUST_MS.store(
+        adjust.ms.clamp(-LIMIT, LIMIT),
+        std::sync::atomic::Ordering::Relaxed,
+    );
+    time().await
+}
+
 /// The device's clock, for the sync clock page to show the same time on
 /// every screen: Unix ms, and whether it was set from the internet (the Pi
 /// has no clock of its own, so offline it may be off)
@@ -380,7 +401,10 @@ async fn time() -> impl axum::response::IntoResponse {
             (axum::http::header::CONTENT_TYPE, "application/json"),
             (axum::http::header::CACHE_CONTROL, "no-store"),
         ],
-        format!(r#"{{"ms":{ms},"synced":{synced}}}"#),
+        format!(
+            r#"{{"ms":{ms},"synced":{synced},"adjust_ms":{}}}"#,
+            CLOCK_ADJUST_MS.load(std::sync::atomic::Ordering::Relaxed)
+        ),
     )
 }
 

@@ -26,6 +26,13 @@
   .hide{display:none!important}
   .src{font-family:-apple-system,"Helvetica Neue",Arial,sans-serif;font-size:1.6vw;letter-spacing:.08em;color:#777}
   .src.warn{color:#f5a000}
+  .adj{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:8px}
+  .adj button,.adjrow button{padding:10px 6px;border-radius:9px;border:1px solid #333;background:#222;color:#ddd;font-size:15px;cursor:pointer;font-variant-numeric:tabular-nums}
+  .adj button:hover,.adjrow button:hover{border-color:var(--acc);color:#fff}
+  .adj button:active{background:var(--acc);color:#000}
+  .adjrow{display:flex;gap:8px;align-items:center;margin-top:8px}
+  .adjrow input[type=time]{flex:1;padding:9px 10px;border-radius:10px;border:1px solid #333;background:#222;color:#fff;font-size:16px;color-scheme:dark}
+  .adjinfo{margin-top:8px;font-size:13px;color:#888;font-variant-numeric:tabular-nums}
 
   /* toolbar */
   .tb{position:absolute;top:2.5vh;right:2.5vh;display:flex;gap:10px;z-index:8;transition:opacity .3s}
@@ -93,6 +100,15 @@
   <div class="f"><label>Надпись</label><input type="text" id="iLabel" maxlength="40"></div>
   <div class="f"><label>Время</label><div class="seg" id="sSrc"></div>
     <small style="display:block;margin-top:7px;color:#777;font-size:12px;line-height:1.4">RDstreamer: все экраны, открывшие эту страницу с RDstreamer (телефон, ноутбук, планшет), показывают одно и то же время, даже если их часы расходятся.</small></div>
+  <div class="f"><label>Своё время</label>
+    <div class="adjrow"><input type="time" step="1" id="iTime" title="Введите время: применяется сразу"></div>
+    <div class="adj">
+      <button data-d="-3600000">− 1 ч</button><button data-d="3600000">+ 1 ч</button>
+      <button data-d="-60000">− 1 мин</button><button data-d="60000">+ 1 мин</button>
+      <button data-d="-1000">− 1 с</button><button data-d="1000">+ 1 с</button>
+    </div>
+    <div class="adjrow"><span class="adjinfo" id="adjInfo" style="flex:1;margin:0"></span><button id="adjReset">Сбросить</button></div>
+  </div>
   <div class="f"><label>Частота кадров</label><div class="seg" id="sFps"></div></div>
   <div class="f"><label>Фон</label>
     <div class="swatches" id="sBg"><input type="color" id="iBg" title="Свой цвет"></div></div>
@@ -117,7 +133,7 @@ const FPS_LIST=[24,25,30,50,60], BG_LIST=['#000000','#1e1e1e','#333333','#0b1f3a
 
 // --- whose clock: RDstreamer's, measured over the network, or this device's
 const SRC_LIST=[['rdstreamer','RDstreamer'],['local','Это устройство']];
-let offset=0, synced=null, rttBest=null, reachable=false;
+let offset=0, synced=null, rttBest=null, reachable=false, shared=0;
 async function measure(){
   // Several round trips; the quickest says the most about the offset
   let best=null;
@@ -130,22 +146,48 @@ async function measure(){
       const rtt=t1-t0;
       const off=j.ms+rtt/2-(performance.timeOrigin+t1);
       if(!best||rtt<best.rtt) best={rtt,off,synced:j.synced};
+      shared=j.adjust_ms||0;
     }catch(e){}
     await new Promise(r=>setTimeout(r,120));
   }
   if(best){offset=best.off;rttBest=best.rtt;synced=best.synced;reachable=true;}
   else reachable=false;
-  showSource();
+  showAdjust();
 }
 function showSource(){
   const el=$('src');
-  if(S.source!=='rdstreamer'){el.textContent='ВРЕМЯ ЭТОГО УСТРОЙСТВА';el.classList.remove('warn');return;}
-  if(!reachable){el.textContent='RDSTREAMER НЕДОСТУПЕН — ВРЕМЯ ЭТОГО УСТРОЙСТВА';el.classList.add('warn');return;}
+  if(S.source!=='rdstreamer'){el.textContent='ВРЕМЯ ЭТОГО УСТРОЙСТВА'+(el.dataset.adj||'');el.classList.remove('warn');return;}
+  if(!reachable){el.textContent='RDSTREAMER НЕДОСТУПЕН — ВРЕМЯ ЭТОГО УСТРОЙСТВА'+(el.dataset.adj||'');el.classList.add('warn');return;}
   const acc='±'+Math.max(1,Math.round(rttBest/2))+' мс';
   el.textContent=synced?'ВРЕМЯ RDSTREAMER · '+acc:'ВРЕМЯ RDSTREAMER (НЕ СВЕРЕНО С ИНТЕРНЕТОМ) · '+acc;
   el.classList.toggle('warn',!synced);
+  el.textContent+=el.dataset.adj||'';
 }
-const nowMs=()=>Date.now()+(S.source==='rdstreamer'&&reachable?offset:0);
+const onPi=()=>S.source==='rdstreamer'&&reachable;
+// A correction typed in or nudged: on RDstreamer it's shared, so every
+// screen moves together; with the device's own clock it stays here
+const adjust=()=>onPi()?shared:(S.localAdjust||0);
+const nowMs=()=>Date.now()+(onPi()?offset:0)+adjust();
+async function setAdjust(v){
+  v=Math.round(v);
+  if(onPi()){
+    shared=v; showAdjust();
+    try{const r=await fetch('/time/adjust',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ms:v})});const j=await r.json();shared=j.adjust_ms||0;}catch(e){}
+  }else{S.localAdjust=v;save();}
+  showAdjust();
+}
+function showAdjust(){
+  const a=adjust(), sign=a<0?'−':'+', t=Math.abs(a);
+  const txt=a===0?'Без коррекции':'Коррекция: '+sign+pad(Math.floor(t/3600000))+':'+pad(Math.floor(t/60000)%60)+':'+pad(Math.floor(t/1000)%60)+(t%1000?'.'+pad(t%1000,3):'');
+  $('adjInfo').textContent=txt+(onPi()?' · для всех экранов':' · только на этом устройстве');
+  $('src').dataset.adj=a===0?'':' · '+txt.toUpperCase();
+  showSource();
+}
+// Other screens' corrections arrive here within a couple of seconds
+setInterval(async()=>{
+  if(S.source!=='rdstreamer'||!reachable||document.hidden) return;
+  try{const j=await (await fetch('/time',{cache:'no-store'})).json();if((j.adjust_ms||0)!==shared){shared=j.adjust_ms||0;showAdjust();}}catch(e){}
+},2000);
 
 // --- settings UI
 SRC_LIST.forEach(([v,t])=>{const b=document.createElement('button');b.textContent=t;b.dataset.v=v;b.onclick=()=>{S.source=v;apply();};$('sSrc').appendChild(b);});
@@ -154,6 +196,15 @@ BG_LIST.forEach(c=>{const b=document.createElement('button');b.style.background=
 $('iBg').oninput=e=>{S.bg=e.target.value;apply();};
 $('iLabel').oninput=e=>{S.label=e.target.value;apply();};
 [['cFlash','flash'],['cDot','dot'],['cBar','bar'],['cDate','date'],['cLogo','logo']].forEach(([id,k])=>{$(id).onchange=e=>{S[k]=e.target.checked;apply();};});
+document.querySelectorAll('.adj button').forEach(b=>b.onclick=()=>setAdjust(adjust()+ +b.dataset.d));
+$('adjReset').onclick=()=>setAdjust(0);
+$('iTime').onchange=e=>{
+  const m=/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(e.target.value); if(!m) return;
+  // That time today, keeping the milliseconds running as they are
+  const shown=new Date(nowMs()), want=new Date(shown);
+  want.setHours(+m[1],+m[2],+(m[3]||0));
+  setAdjust(adjust()+(want-shown));
+};
 $('reset').onclick=()=>{S=Object.assign({},DEF);apply();};
 
 let cells=[], builtFps=0;
@@ -170,7 +221,7 @@ function apply(){
   $('flbl').textContent='FRAME @'+S.fps;
   [...$('sFps').children].forEach(b=>b.classList.toggle('on',+b.dataset.v===S.fps));
   [...$('sSrc').children].forEach(b=>b.classList.toggle('on',b.dataset.v===S.source));
-  showSource();
+  showAdjust();
   [...$('sBg').querySelectorAll('button')].forEach(b=>b.classList.toggle('on',b.dataset.c.toLowerCase()===S.bg.toLowerCase()));
   $('iBg').value=/^#[0-9a-f]{6}$/i.test(S.bg)?S.bg:'#1e1e1e';
   $('cFlash').checked=S.flash; $('cDot').checked=S.dot; $('cBar').checked=S.bar; $('cDate').checked=S.date; $('cLogo').checked=S.logo;
@@ -211,6 +262,7 @@ $('bFlash').onclick=e=>{e.stopPropagation();S.flash=!S.flash;apply();};
 panel.addEventListener('click',e=>e.stopPropagation());
 document.addEventListener('click',()=>{ if(panel.classList.contains('open')) togglePanel(false); else fs(); });
 document.addEventListener('keydown',e=>{
+  if(document.activeElement===$('iTime')) return;
   if(document.activeElement===$('iLabel')){ if(e.key==='Enter'||e.key==='Escape') $('iLabel').blur(); return; }
   const k=e.key.toLowerCase();
   if(k==='f'||k==='а') fs();
