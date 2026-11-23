@@ -59,9 +59,11 @@
   <div class="px-4 py-3 text-[12px] text-muted">
     {#if on}
       Each browser applies the LUT and Dewarp itself to the goggles' picture,
-      with its own graphics: nothing extra for the Pi. No stabilisation.
+      with its own graphics: nothing extra for the Pi. No stabilisation. The
+      default for viewers, who can switch it off for themselves in their menu.
     {:else}
-      Browsers show the goggles' own picture, ungraded.
+      Browsers show the goggles' own picture, ungraded, unless a viewer switches
+      Processing on in their menu.
     {/if}
   </div>
 </section>

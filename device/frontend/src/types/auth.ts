@@ -14,6 +14,8 @@ export interface AuthStatus {
   quality: ViewerQuality;
   /** The look for this browser to apply itself, when that's where it's made */
   grading: Grading | null;
+  /** Whether browsers apply it unless the viewer says otherwise */
+  grading_default: boolean;
 }
 
 export type Grading = Pick<Settings["display"], "look" | "dewarp">;

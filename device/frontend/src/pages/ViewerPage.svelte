@@ -2,6 +2,7 @@
   // The page to give guests: the picture and nothing to change on the
   // device. They may pick how their own browser receives it. The owner gets
   // to the settings with three taps on the logo
+  import { auth } from "@/stores/auth.svelte";
   import type { Status } from "@/types/stream";
   import type { ViewerQuality, ViewerTransport } from "@/types/settings";
   import Player from "@/components/watch/Player.svelte";
@@ -16,7 +17,11 @@
   import Copy from "@lucide/svelte/icons/copy";
 
   const KEY = "rdViewer";
-  let saved: { quality?: ViewerQuality; transport?: ViewerTransport } = {};
+  let saved: {
+    quality?: ViewerQuality;
+    transport?: ViewerTransport;
+    graded?: boolean;
+  } = {};
   try {
     saved = JSON.parse(localStorage.getItem(KEY) ?? "{}");
   } catch {
@@ -27,15 +32,21 @@
   let theater = $state(true);
   let quality = $state<ViewerQuality | null>(saved.quality ?? null);
   let transport = $state<ViewerTransport | null>(saved.transport ?? null);
+  let graded = $state<boolean | null>(saved.graded ?? null);
   let open = $state(false);
 
   $effect(() => {
     try {
-      localStorage.setItem(KEY, JSON.stringify({ quality, transport }));
+      localStorage.setItem(KEY, JSON.stringify({ quality, transport, graded }));
     } catch {
       // Not kept, fine
     }
   });
+
+  const PROCESSING = [
+    { label: "On", value: "on" },
+    { label: "Off", value: "off" },
+  ];
 
   const QUALITIES = [
     { label: "Auto", value: "auto" },
@@ -212,6 +223,21 @@
             : "Steadier frame rate on some phones, a little more delay."}
         </p>
       </div>
+      {#if auth.grading}
+        <div class="flex-1">
+          <Segmented
+            label="Processing"
+            options={PROCESSING}
+            value={(graded ?? auth.gradingDefault) ? "on" : "off"}
+            onchange={(v) => (graded = v === "on")}
+          />
+          <p class="mt-1.5 text-[12px] text-muted">
+            {(graded ?? auth.gradingDefault)
+              ? "Colour (LUT) and lens correction, done by this device's graphics."
+              : "The camera's own picture: flat colours, as recorded."}
+          </p>
+        </div>
+      {/if}
     </div>
   {/if}
 
@@ -222,6 +248,7 @@
         bind:theater
         qualityChoice={quality}
         transportChoice={transport}
+        gradeChoice={graded}
       />
     </div>
   </main>

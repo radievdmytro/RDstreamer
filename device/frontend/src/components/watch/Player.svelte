@@ -27,6 +27,7 @@
     graded = null,
     transportChoice = null,
     qualityChoice = null,
+    gradeChoice = null,
   }: {
     status?: Status;
     theater?: boolean;
@@ -38,6 +39,8 @@
     /** A viewer's own choice, over the device's settings */
     transportChoice?: ViewerTransport | null;
     qualityChoice?: ViewerQuality | null;
+    /** This viewer's own choice to grade the picture, over the device's */
+    gradeChoice?: boolean | null;
   } = $props();
 
   const HISTORY = 120;
@@ -147,7 +150,10 @@
   // The look drawn here: the image preview's, or the Pi's when browsers
   // grade the picture themselves
   const look = $derived(
-    graded ?? (auth.grading ? { display: auth.grading, split: 0 } : null),
+    graded ??
+      (auth.grading && (gradeChoice ?? auth.gradingDefault)
+        ? { display: auth.grading, split: 0 }
+        : null),
   );
   const query = $derived(
     graded

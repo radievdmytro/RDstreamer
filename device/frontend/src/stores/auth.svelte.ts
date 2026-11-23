@@ -14,6 +14,7 @@ class AuthStore {
   quality = $state<ViewerQuality>("auto");
   /** Set when browsers grade the picture themselves */
   grading = $state<Grading | null>(null);
+  gradingDefault = $state(true);
 
   admin = $derived(this.access === "admin");
   canView = $derived(this.access !== "none");
@@ -41,6 +42,7 @@ class AuthStore {
       this.transport = s.transport;
       this.quality = s.quality ?? "auto";
       this.grading = s.grading ?? null;
+      this.gradingDefault = s.grading_default ?? true;
       this.loaded = true;
       this.unreachable = null;
     } catch (e) {
