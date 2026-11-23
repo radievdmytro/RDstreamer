@@ -15,6 +15,8 @@ const ASK_AGAIN: &str = "no-cache";
 pub async fn serve(uri: Uri, headers: HeaderMap) -> Response {
     let path = match uri.path().trim_start_matches('/') {
         "" => "index.html",
+        // Short to type on a phone: http://rdstreamer.local/sync
+        "sync" => "sync.html",
         path => path,
     };
     // The page does its own routing, so its addresses all load the page;

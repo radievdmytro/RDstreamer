@@ -190,6 +190,7 @@ pub fn start(
                 ));
             let app = Router::new()
                 .route("/health", get(health))
+                .route("/time", get(time))
                 .nest("/api", crate::web::api::router(services).merge(watching))
                 .fallback_service(
                     get(ui::serve).layer(tower_http::compression::CompressionLayer::new()),
@@ -362,6 +363,27 @@ async fn recording_watch(
 }
 
 /// The updater reads the version to tell that a new one has come up
+/// The device's clock, for the sync clock page to show the same time on
+/// every screen: Unix ms, and whether it was set from the internet (the Pi
+/// has no clock of its own, so offline it may be off)
+async fn time() -> impl axum::response::IntoResponse {
+    let synced =
+        crate::net::network::run("timedatectl", &["show", "-p", "NTPSynchronized", "--value"])
+            .await
+            .is_ok_and(|v| v.trim() == "yes");
+    // Read last, as close to the answer leaving as possible
+    let ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis() as u64);
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "application/json"),
+            (axum::http::header::CACHE_CONTROL, "no-store"),
+        ],
+        format!(r#"{{"ms":{ms},"synced":{synced}}}"#),
+    )
+}
+
 async fn health() -> impl axum::response::IntoResponse {
     (
         [(axum::http::header::CONTENT_TYPE, "application/json")],

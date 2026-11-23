@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Timer from "@lucide/svelte/icons/timer";
+  import ExternalLink from "@lucide/svelte/icons/external-link";
   import { control } from "@/stores/control.svelte";
   import { settings } from "@/stores/settings.svelte";
   import { recording } from "@/stores/recording.svelte";
@@ -125,6 +127,23 @@
         {@render item(p)}
       {/each}
     {/each}
+
+    <span
+      class="mt-5 mb-1.5 px-3 font-display text-[12px] font-semibold tracking-[0.14em] text-faint uppercase"
+      >Tools</span
+    >
+    <!-- Its own page, full screen in front of the cameras -->
+    <a
+      href="/sync"
+      target="_blank"
+      rel="noopener"
+      class="flex items-center gap-3 rounded-md px-3 py-2 text-[13px] font-medium text-muted transition-colors hover:bg-surface-2/60 hover:text-fg focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
+      title="A timecode clock to film at the start of each take, for syncing the cameras in editing"
+    >
+      <Timer class="h-4 w-4 shrink-0" aria-hidden="true" />
+      <span class="flex-1">Sync clock</span>
+      <ExternalLink class="h-3.5 w-3.5 text-faint" aria-hidden="true" />
+    </a>
   </nav>
 
   {#if auth.admin && update.available}
