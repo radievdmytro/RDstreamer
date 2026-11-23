@@ -46,7 +46,8 @@ impl Targets {
             srt: s.srt.processed,
             rtmp: s.rtmp.processed,
             udp: s.udp.processed,
-            web: s.viewer.processed && s.viewer.grade_in == crate::settings::GradeIn::Pi,
+            // Browsers grade the picture themselves
+            web: false,
         }
     }
 

@@ -118,10 +118,8 @@ export interface Settings {
     max_viewers: number;
     /** Original, a lighter 720p copy, or the light one once a viewer lags */
     quality: ViewerQuality;
-    /** With the HDMI look (LUT, dewarp, stabilisation) rather than the goggles' own picture */
+    /** Browsers apply the HDMI look (LUT, Dewarp) themselves */
     processed: boolean;
-    /** Where that look is made: each browser's GPU, or the Pi (which can also stabilise) */
-    grade_in: "browser" | "pi";
   };
   display: {
     hdmi_output: boolean;

@@ -185,28 +185,9 @@
       <ProcessedField
         id="viewer-processed"
         browser
-        status={viewer.grade_in === "pi"}
+        status={false}
         bind:checked={viewer.processed}
       />
-      <Field
-        label="Graded in"
-        help={viewer.grade_in === "browser"
-          ? "Each browser applies the LUT and Dewarp itself: the Pi sends the original, no extra load. No stabilisation."
-          : "The Pi grades, stabilises and encodes the picture again: heavier for the Pi, the same picture everywhere."}
-        disabled={!viewer.processed}
-      >
-        <div class="w-full sm:w-64">
-          <Segmented
-            options={[
-              { label: "Browser", value: "browser" },
-              { label: "Pi", value: "pi" },
-            ]}
-            value={viewer.grade_in}
-            disabled={!viewer.processed}
-            onchange={(v) => (viewer.grade_in = v)}
-          />
-        </div>
-      </Field>
       <Field
         label="Transport"
         help="WebRTC: lowest latency. WebSocket: steadier frame rate."

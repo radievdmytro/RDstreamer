@@ -54,7 +54,7 @@ uniform float aspect;
 // 1 when the picture comes in video levels (black at 16, white at 235)
 uniform float levels;
 // 1 when the picture goes on to the image processor to be encoded, which
-// takes RGB in video levels too
+// takes RGB in video levels too, and red and blue the other way round
 uniform float vout;
 // Stabilisation: sample at R(sangle)·p/szoom + soffset (look::stab)
 uniform float stab;
@@ -110,7 +110,7 @@ void main() {
     vec3 graded = lookup(clamp(c.rgb, 0.0, 1.0));
     vec3 o = mix(c.rgb, graded, strength);
     if (vout > 0.5) {
-        o = 16.0 / 255.0 + o * (219.0 / 255.0);
+        o = 16.0 / 255.0 + o.bgr * (219.0 / 255.0);
     }
     gl_FragColor = vec4(o, 1.0);
 }

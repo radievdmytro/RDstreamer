@@ -3,30 +3,19 @@
   import { api, message } from "@/api/client";
   import { settings } from "@/stores/settings.svelte";
   import { snackbar } from "@/stores/snackbar.svelte";
-  import { processing, PROCESSING_LABEL } from "@/stores/processing.svelte";
   import { auth } from "@/stores/auth.svelte";
-  import Segmented from "@/components/ui/Segmented.svelte";
-
-  const WHERE = [
-    { label: "In the browser", value: "browser" },
-    { label: "On the Pi", value: "pi" },
-  ] as const;
 
   let busy = $state(false);
 
   onMount(() => {
     if (!settings.saved) settings.load();
-    return processing.watch();
+    return undefined;
   });
 
   const on = $derived(settings.saved?.viewer.processed ?? false);
-  const where = $derived(settings.saved?.viewer.grade_in ?? "browser");
-  const st = $derived(processing.status);
 
   /** Saved at once: it's what this player shows */
-  async function save(
-    change: Partial<{ processed: boolean; grade_in: "browser" | "pi" }>,
-  ) {
+  async function save(change: Partial<{ processed: boolean }>) {
     const viewer = settings.saved?.viewer;
     if (!viewer || busy) return;
     busy = true;
@@ -34,7 +23,6 @@
       settings.replace(
         await api.saveSection("viewer", { ...viewer, ...change }),
       );
-      processing.poll();
       // What this player draws itself comes with the access status
       await auth.load();
     } catch (e) {
@@ -68,33 +56,12 @@
       ></span>
     </button>
   </header>
-  <div class="flex flex-col gap-2.5 px-4 py-3 text-[12px] text-muted">
-    {#if !on}
-      <p>
-        Browsers get the goggles' own picture. On: the HDMI look — LUT and
-        Dewarp, plus Stabilisation when made on the Pi.
-      </p>
+  <div class="px-4 py-3 text-[12px] text-muted">
+    {#if on}
+      Each browser applies the LUT and Dewarp itself to the goggles' picture,
+      with its own graphics: nothing extra for the Pi. No stabilisation.
     {:else}
-      <Segmented
-        options={[...WHERE]}
-        value={where}
-        disabled={busy}
-        onchange={(v) => save({ grade_in: v })}
-      />
-      {#if where === "browser"}
-        <p>
-          Each browser grades the goggles' picture with its own graphics: the Pi
-          sends it as it is, nothing extra to do. LUT and Dewarp only — no
-          stabilisation.
-        </p>
-      {:else if st}
-        <p>
-          <span class="font-medium text-fg">{PROCESSING_LABEL[st.state]}</span>
-          — {st.state === "running"
-            ? "the Pi grades, stabilises and encodes it again for the browsers."
-            : `${st.detail}. Until then, the original.`}
-        </p>
-      {/if}
+      Browsers show the goggles' own picture, ungraded.
     {/if}
   </div>
 </section>

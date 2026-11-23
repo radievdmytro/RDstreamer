@@ -84,7 +84,7 @@
     </div>
   </Field>
   <p class="px-4 pb-3 text-[12px] text-faint">
-    Shows on HDMI and in each stream that has “Image processing” on (the
-    browsers have it on by default), not in the live preview above.
+    Shows on HDMI and in each stream (RTSP, SRT, RTMP, UDP) that has
+    “Processing” on. Browsers and the live preview above don't stabilise.
   </p>
 </Card>

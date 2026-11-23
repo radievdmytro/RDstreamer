@@ -336,21 +336,9 @@ pub struct ViewerSettings {
     pub transport: ViewerTransport,
     pub max_viewers: u8,
     pub quality: ViewerQuality,
-    /// Browsers see the HDMI look (on by default: viewers want the finished
-    /// picture; the streams keep the flat one for grading elsewhere)
+    /// Browsers apply the HDMI look (LUT, Dewarp) themselves, to the
+    /// goggles' picture (on by default: viewers want the finished picture)
     pub processed: bool,
-    /// Where that look is made for browsers
-    pub grade_in: GradeIn,
-}
-
-/// The browser's own GPU spares the Pi a second encoder; only the Pi can
-/// stabilise
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum GradeIn {
-    #[default]
-    Browser,
-    Pi,
 }
 
 impl Default for ViewerSettings {
@@ -360,7 +348,6 @@ impl Default for ViewerSettings {
             max_viewers: 0,
             quality: ViewerQuality::default(),
             processed: true,
-            grade_in: GradeIn::Browser,
         }
     }
 }

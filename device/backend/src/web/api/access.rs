@@ -40,13 +40,12 @@ pub(super) async fn auth_status(
         quality: sv.store.get().viewer.quality,
         grading: {
             let s = sv.store.get();
-            (s.viewer.processed
-                && s.viewer.grade_in == crate::settings::GradeIn::Browser
-                && (s.display.look.enabled || s.display.dewarp.enabled))
-                .then(|| Grading {
+            (s.viewer.processed && (s.display.look.enabled || s.display.dewarp.enabled)).then(
+                || Grading {
                     look: s.display.look.clone(),
                     dewarp: s.display.dewarp.clone(),
-                })
+                },
+            )
         },
     })
 }
