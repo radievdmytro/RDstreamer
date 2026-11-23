@@ -15,10 +15,3 @@ fn sends_those_names_to_the_device() {
     assert!(conf.contains("address=/captive.apple.com/10.0.0.1\n"));
     assert_eq!(conf.matches("address=").count(), PROBE_HOSTS.len());
 }
-
-#[test]
-fn answers_each_kind_of_device_as_it_expects() {
-    assert_eq!(expected("/generate_204").status(), StatusCode::NO_CONTENT);
-    assert_eq!(expected("/hotspot-detect.html").status(), StatusCode::OK);
-    assert_eq!(expected("/connecttest.txt").status(), StatusCode::OK);
-}

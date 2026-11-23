@@ -299,7 +299,7 @@
         <Field
           label="Open the viewer when a phone joins"
           for="ap-open-viewer"
-          help="Phones that join this network (by the QR code, say) open the picture by themselves, like a hotel WiFi sign-in page. If RDstreamer has the internet, they use it too once they've seen the page."
+          help="Phones that join this network (by the QR code, say) open the picture by themselves, like a hotel WiFi sign-in page. They keep using mobile data for the internet."
         >
           <Switch id="ap-open-viewer" bind:checked={wifi.ap.open_viewer} />
         </Field>
