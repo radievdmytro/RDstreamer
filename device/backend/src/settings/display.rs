@@ -228,6 +228,30 @@ pub struct SplashSettings {
     pub show_ap_password: bool,
     /// Play the uploaded background video behind the status
     pub background_video: bool,
+    /// The connection details over the background video
+    pub status_over_video: bool,
+    /// How the details show over a picture or the video: a band along the
+    /// bottom, or a small box in a corner
+    pub status_layout: StatusLayout,
+    pub status_corner: Corner,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum StatusLayout {
+    #[default]
+    Band,
+    Corner,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum Corner {
+    TopLeft,
+    #[default]
+    TopRight,
+    BottomLeft,
+    BottomRight,
 }
 
 impl Default for SplashSettings {
@@ -239,6 +263,9 @@ impl Default for SplashSettings {
             image_scaling: Scaling::Fit,
             show_ap_password: true,
             background_video: true,
+            status_over_video: true,
+            status_layout: StatusLayout::Band,
+            status_corner: Corner::TopRight,
         }
     }
 }

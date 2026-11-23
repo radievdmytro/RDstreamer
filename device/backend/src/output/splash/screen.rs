@@ -4,7 +4,9 @@ use base64::Engine;
 
 use crate::input::goggles::LinkState;
 use crate::net::network::{InterfaceStatus, Network, NetworkStatus};
-use crate::settings::{InputMode, Scaling, SettingsStore, WifiMode, WifiSettings};
+use crate::settings::{
+    Corner, InputMode, Scaling, SettingsStore, StatusLayout, WifiMode, WifiSettings,
+};
 
 pub const WIDTH: u32 = 1920;
 pub const HEIGHT: u32 = 1080;
@@ -27,6 +29,22 @@ const QR_LIGHT: &str = "#ffffff";
 
 const SANS: &str = "Inter, Nimbus Sans, DejaVu Sans, sans-serif";
 const MONO: &str = "DejaVu Sans Mono, monospace";
+
+/// Where the details go over a picture or the video
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Layout {
+    Band,
+    Corner(Corner),
+}
+
+impl Layout {
+    pub fn of(cfg: &crate::settings::SplashSettings) -> Self {
+        match cfg.status_layout {
+            StatusLayout::Band => Layout::Band,
+            StatusLayout::Corner => Layout::Corner(cfg.status_corner),
+        }
+    }
+}
 
 pub struct Screen {
     source: InputMode,
@@ -296,14 +314,150 @@ impl Screen {
 
     /// The same information as `svg`, as a band along the bottom of
     /// someone's own picture
-    pub fn over_image(&self, image: &str, scaling: Scaling) -> String {
-        self.band(Some((image, scaling)))
+    pub fn over_image(&self, image: &str, scaling: Scaling, layout: Layout) -> String {
+        match layout {
+            Layout::Band => self.band(Some((image, scaling))),
+            Layout::Corner(c) => self.corner(Some((image, scaling)), c),
+        }
     }
 
     /// The same band of status and login details, over nothing: drawn on
     /// its own display plane above a video playing behind it
-    pub fn over_video(&self) -> String {
-        self.band(None)
+    pub fn over_video(&self, layout: Layout) -> String {
+        match layout {
+            Layout::Band => self.band(None),
+            Layout::Corner(c) => self.corner(None, c),
+        }
+    }
+
+    /// The same details, compact: a small box in a corner, a line each
+    fn corner(&self, image: Option<(&str, Scaling)>, corner: Corner) -> String {
+        const MARGIN: u32 = 40;
+        const PAD: u32 = 22;
+        const STEP: u32 = 34;
+        const SMALL_STEP: u32 = 28;
+
+        enum Line {
+            Status(&'static str, String),
+            Notice(&'static str, String),
+            Link(&'static str, String, &'static str),
+            Detail(String),
+        }
+        let (tone, status) = self.status();
+        let mut lines = vec![Line::Status(tone, status)];
+        if let Some((notice, color)) = &self.notice {
+            lines.push(Line::Notice(color, notice.clone()));
+        }
+        for link in &self.links {
+            let color = match link.tone {
+                Tone::Address => FG,
+                Tone::Pending => WARN,
+                Tone::Down => DOWN,
+            };
+            lines.push(Line::Link(link.label, link.value.clone(), color));
+            if !link.details.is_empty() {
+                let details = link
+                    .details
+                    .iter()
+                    .map(|(l, v)| {
+                        if l.is_empty() {
+                            v.clone()
+                        } else {
+                            format!("{l} {v}")
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join("  ·  ");
+                lines.push(Line::Detail(details));
+            }
+        }
+
+        // Widths guessed from the character count: wide enough for these fonts
+        let chars = |text: &str| text.chars().count() as u32;
+        let inner = lines
+            .iter()
+            .map(|l| match l {
+                Line::Status(_, t) | Line::Notice(_, t) => chars(t) * 13,
+                Line::Link(label, value, _) => chars(label) * 11 + 16 + chars(value) * 15,
+                Line::Detail(t) => chars(t) * 11,
+            })
+            .max()
+            .unwrap_or(0);
+        let w = (inner + 2 * PAD).min(WIDTH - 2 * MARGIN);
+        let h = PAD * 2
+            + lines
+                .iter()
+                .map(|l| match l {
+                    Line::Detail(_) => SMALL_STEP,
+                    _ => STEP,
+                })
+                .sum::<u32>();
+        let x = match corner {
+            Corner::TopLeft | Corner::BottomLeft => MARGIN,
+            Corner::TopRight | Corner::BottomRight => WIDTH - MARGIN - w,
+        };
+        let y = match corner {
+            Corner::TopLeft | Corner::TopRight => MARGIN,
+            Corner::BottomLeft | Corner::BottomRight => HEIGHT - MARGIN - h,
+        };
+
+        let background = match image {
+            Some((image, scaling)) => {
+                let aspect = match scaling {
+                    Scaling::Fit => "xMidYMid meet",
+                    Scaling::Fill => "xMidYMid slice",
+                };
+                format!(
+                    r#"<rect width="100%" height="100%" fill="black"/>
+<image width="{WIDTH}" height="{HEIGHT}" preserveAspectRatio="{aspect}" href="{image}"/>
+"#
+                )
+            }
+            None => String::new(),
+        };
+        let mut s = String::new();
+        let _ = write!(
+            s,
+            r#"<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{HEIGHT}" viewBox="0 0 {WIDTH} {HEIGHT}">
+{background}<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="14" fill="{BASE}" fill-opacity="0.78"/>
+"#
+        );
+        let tx = x + PAD;
+        let mut ty = y + PAD;
+        for line in &lines {
+            match line {
+                Line::Status(color, text) | Line::Notice(color, text) => {
+                    ty += STEP;
+                    let _ = writeln!(
+                        s,
+                        r#"<text x="{tx}" y="{}" font-family="{SANS}" font-size="22" fill="{color}">{}</text>"#,
+                        ty - 9,
+                        escape(text),
+                    );
+                }
+                Line::Link(label, value, color) => {
+                    ty += STEP;
+                    let _ = writeln!(
+                        s,
+                        r#"<text x="{tx}" y="{}" font-family="{SANS}" font-size="15" font-weight="600" letter-spacing="2" fill="{MUTED}">{}<tspan dx="14" font-family="{MONO}" font-size="24" font-weight="400" letter-spacing="0" fill="{color}">{}</tspan></text>"#,
+                        ty - 9,
+                        escape(&label.to_uppercase()),
+                        escape(value),
+                    );
+                }
+                Line::Detail(text) => {
+                    ty += SMALL_STEP;
+                    let _ = writeln!(
+                        s,
+                        r#"<text x="{tx}" y="{}" font-family="{SANS}" font-size="18" fill="{MUTED}">{}</text>"#,
+                        ty - 8,
+                        escape(text),
+                    );
+                }
+            }
+        }
+        s.push_str("</svg>");
+        s
     }
 
     fn band(&self, image: Option<(&str, Scaling)>) -> String {

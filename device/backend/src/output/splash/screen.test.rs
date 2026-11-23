@@ -43,8 +43,11 @@ fn access_point() -> (WifiSettings, NetworkStatus) {
 #[test]
 fn band_over_an_image_keeps_what_is_needed_to_get_in() {
     let (wifi, status) = access_point();
-    let svg = describe(80, LinkState::Unplugged, &wifi, &status, true)
-        .over_image("data:image/png;base64,AAAA", Scaling::Fit);
+    let svg = describe(80, LinkState::Unplugged, &wifi, &status, true).over_image(
+        "data:image/png;base64,AAAA",
+        Scaling::Fit,
+        Layout::Band,
+    );
 
     assert!(svg.contains(r#"href="data:image/png;base64,AAAA""#));
     assert!(svg.contains("Connect the goggles to the USB-C port"));
@@ -56,8 +59,11 @@ fn band_over_an_image_keeps_what_is_needed_to_get_in() {
 #[test]
 fn band_over_an_image_leaves_out_the_branding() {
     let (wifi, status) = access_point();
-    let svg = describe(80, LinkState::Unplugged, &wifi, &status, true)
-        .over_image("data:image/png;base64,AAAA", Scaling::Fit);
+    let svg = describe(80, LinkState::Unplugged, &wifi, &status, true).over_image(
+        "data:image/png;base64,AAAA",
+        Scaling::Fit,
+        Layout::Band,
+    );
 
     assert!(!svg.contains("SCAN TO JOIN"));
     assert!(!svg.contains("streamer</tspan>"));
@@ -69,12 +75,12 @@ fn image_under_the_band_is_fitted_or_fills_the_screen() {
     let screen = describe(80, LinkState::Unplugged, &wifi, &status, true);
     assert!(
         screen
-            .over_image("data:,", Scaling::Fit)
+            .over_image("data:,", Scaling::Fit, Layout::Band)
             .contains("xMidYMid meet")
     );
     assert!(
         screen
-            .over_image("data:,", Scaling::Fill)
+            .over_image("data:,", Scaling::Fill, Layout::Band)
             .contains("xMidYMid slice")
     );
 }
@@ -83,7 +89,10 @@ fn image_under_the_band_is_fitted_or_fills_the_screen() {
 fn access_point_password_can_be_kept_off_the_screen() {
     let (wifi, status) = access_point();
     let screen = describe(80, LinkState::Unplugged, &wifi, &status, false);
-    for svg in [screen.svg(), screen.over_image("data:,", Scaling::Fit)] {
+    for svg in [
+        screen.svg(),
+        screen.over_image("data:,", Scaling::Fit, Layout::Band),
+    ] {
         assert!(!svg.contains("flyfast123"));
         assert!(!svg.contains("SCAN TO JOIN"));
         // still says which network to join and where to go
@@ -95,4 +104,29 @@ fn access_point_password_can_be_kept_off_the_screen() {
             .svg()
             .contains("SCAN TO JOIN")
     );
+}
+
+#[test]
+fn the_details_fit_in_a_corner_box() {
+    let (wifi, status) = access_point();
+    let screen = describe(80, LinkState::Unplugged, &wifi, &status, true);
+    for corner in [
+        Corner::TopLeft,
+        Corner::TopRight,
+        Corner::BottomLeft,
+        Corner::BottomRight,
+    ] {
+        let svg = screen.over_video(Layout::Corner(corner));
+        assert!(svg.contains("10.42.0.1"));
+        assert!(svg.contains("flyfast123"));
+        // a small box, not the band across the screen
+        let w: u32 = svg
+            .split(r#"rx="14""#)
+            .next()
+            .and_then(|head| head.rsplit("width=\"").next())
+            .and_then(|v| v.split('"').next())
+            .and_then(|v| v.parse().ok())
+            .expect("the box's width");
+        assert!(w < WIDTH / 2, "{w}");
+    }
 }

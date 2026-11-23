@@ -104,6 +104,17 @@
     previewFailed = false;
     version = Date.now();
   }
+
+  const LAYOUTS = [
+    { label: "Band at the bottom", value: "band" },
+    { label: "Compact, in a corner", value: "corner" },
+  ];
+  const CORNERS = [
+    { label: "↖ Top left", value: "top_left" },
+    { label: "↗ Top right", value: "top_right" },
+    { label: "↙ Bottom left", value: "bottom_left" },
+    { label: "↘ Bottom right", value: "bottom_right" },
+  ];
 </script>
 
 <Card title="Splash screen">
@@ -179,6 +190,28 @@
       bind:checked={splash.status_over_image}
       disabled={!custom}
     />
+  </Field>
+  <Field
+    label="Details layout"
+    help={splash.status_layout === "band"
+      ? "Over a custom image or the background video: a band along the bottom with everything in large type."
+      : "Over a custom image or the background video: a small box in a corner, a line each."}
+    stacked
+  >
+    <div class="flex w-full flex-col gap-2 sm:w-96">
+      <Segmented
+        options={LAYOUTS}
+        value={splash.status_layout}
+        onchange={(v) => (splash.status_layout = v)}
+      />
+      {#if splash.status_layout === "corner"}
+        <Segmented
+          options={CORNERS}
+          value={splash.status_corner}
+          onchange={(v) => (splash.status_corner = v)}
+        />
+      {/if}
+    </div>
   </Field>
   <Field label="Show access point password on screen" for="splash-ap-password">
     <Switch id="splash-ap-password" bind:checked={splash.show_ap_password} />

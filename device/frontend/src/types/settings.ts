@@ -172,6 +172,11 @@ export interface Settings {
     show_ap_password: boolean;
     /** Play the uploaded background video behind the status */
     background_video: boolean;
+    /** The connection details over the background video (HDMI) */
+    status_over_video: boolean;
+    /** Over a picture or the video: a band along the bottom or a small box */
+    status_layout: "band" | "corner";
+    status_corner: "top_left" | "top_right" | "bottom_left" | "bottom_right";
   };
   overlay: {
     enabled: boolean;

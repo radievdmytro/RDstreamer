@@ -242,7 +242,9 @@ impl Splash {
         let svg = {
             let status = self.status.lock().unwrap();
             match (&custom, &*status) {
-                (Some(uri), Some(status)) if over_image => status.over_image(uri, scaling),
+                (Some(uri), Some(status)) if over_image => {
+                    status.over_image(uri, scaling, screen::Layout::of(&cfg))
+                }
                 (Some(_), _) => {
                     let image = fs::read(self.image_path())?;
                     let mime =
@@ -333,6 +335,7 @@ impl Splash {
         let mut frozen: Option<Frames> = None;
         let mut refreshed: Option<Instant> = None;
         let mut shown_source: Option<(InputMode, LinkState, Option<String>)> = None;
+        let mut shown_layout: Option<screen::Layout> = None;
         let mut next = 0;
 
         loop {
@@ -371,7 +374,9 @@ impl Splash {
             };
 
             let shown = self.source_status();
+            let layout = screen::Layout::of(&cfg);
             if shown_source.as_ref() != Some(&shown)
+                || shown_layout != Some(layout)
                 || background_changed
                 || refreshed.is_none_or(|t| t.elapsed() >= REFRESH_INTERVAL)
             {
@@ -385,6 +390,7 @@ impl Splash {
                     shown.2.clone(),
                 ));
                 shown_source = Some(shown);
+                shown_layout = Some(layout);
 
                 let svg = status.svg();
                 if svg != screen_svg {
@@ -399,7 +405,7 @@ impl Splash {
 
                 match &background {
                     Some(uri) => {
-                        let svg = status.over_image(uri, cfg.image_scaling);
+                        let svg = status.over_image(uri, cfg.image_scaling, layout);
                         if svg != over_image_svg {
                             // Without it the image still shows, just bare
                             over_image = encode_svg(&svg).unwrap_or_else(|e| {
@@ -472,8 +478,13 @@ impl Splash {
                         println!("[splash] playing the background video");
                         player = Some(video::Player::new(self.video_path(), fps));
                     }
-                    if let Some(status) = &*self.status.lock().unwrap() {
-                        let svg = status.over_video();
+                    if !cfg.status_over_video {
+                        if !layer_svg.is_empty() {
+                            crate::output::overlay::set_status_layer(None);
+                            layer_svg.clear();
+                        }
+                    } else if let Some(status) = &*self.status.lock().unwrap() {
+                        let svg = status.over_video(layout);
                         if svg != layer_svg {
                             match svg_to_layer(&svg) {
                                 Ok(layer) => {

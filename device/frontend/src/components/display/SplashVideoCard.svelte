@@ -5,6 +5,8 @@
   import { settings } from "@/stores/settings.svelte";
   import { snackbar } from "@/stores/snackbar.svelte";
   import Card from "@/components/ui/Card.svelte";
+  import Field from "@/components/ui/Field.svelte";
+  import Switch from "@/components/ui/Switch.svelte";
   import { btn } from "@/components/ui/buttons";
   import Film from "@lucide/svelte/icons/film";
   import Power from "@lucide/svelte/icons/power";
@@ -195,4 +197,16 @@
       onchange={upload}
     />
   </div>
+  <Field
+    label="Show connection details over the video"
+    for="splash-video-status"
+    help="Status, addresses and Wi-Fi login on HDMI. Off: just the video. Where and how they show: “Details layout” in the Splash screen card."
+    disabled={!ready}
+  >
+    <Switch
+      id="splash-video-status"
+      bind:checked={splash.status_over_video}
+      disabled={!ready}
+    />
+  </Field>
 </Card>
