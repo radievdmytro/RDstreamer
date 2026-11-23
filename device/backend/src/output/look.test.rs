@@ -291,6 +291,8 @@ fn grades_and_dewarps_on_the_gpu() {
         eprintln!("no GStreamer GL here; skipped");
         return;
     }
+    // Live video, not the splash screen, which goes through untouched
+    SPLASH.store(false, std::sync::atomic::Ordering::Relaxed);
     register().unwrap();
     let (w, h) = (64usize, 36usize);
     let solid: Vec<u8> = (0..w * h).flat_map(|_| [0xe0, 0x30, 0x10, 0xff]).collect();

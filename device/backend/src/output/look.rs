@@ -394,6 +394,10 @@ pub(crate) struct Current {
 /// The Pi's image processor hands the GPU RGB in video levels: black at 16,
 /// white at 235. Shown like that, black was grey and the picture flat next to
 /// HDMI without the GPU stage, so the shader stretches it to full range
+/// The splash screen is up (status, QR code, a custom image): HDMI shows it
+/// without the LUT or lens correction
+pub static SPLASH: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
 pub static VIDEO_LEVELS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 pub(crate) static CURRENT: LazyLock<Mutex<Current>> = LazyLock::new(|| {

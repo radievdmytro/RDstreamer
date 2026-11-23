@@ -138,6 +138,6 @@
     </div>
   </main>
   <footer class="px-4 pb-3 text-center text-[11px] text-faint sm:px-6">
-    Double-click the picture for full screen
+    Double-click (or double-tap) the picture for full screen
   </footer>
 </div>

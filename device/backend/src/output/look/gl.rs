@@ -299,7 +299,14 @@ mod imp {
 
             // Without a LUT (a custom one that's gone, say) the picture
             // goes through as it is
-            let graded = atlas.is_some() && st.texture != 0;
+            // The splash screen goes through untouched
+            let splash = crate::output::look::SPLASH.load(std::sync::atomic::Ordering::Relaxed);
+            let dewarp = if splash {
+                crate::output::look::Dewarp::OFF
+            } else {
+                dewarp
+            };
+            let graded = atlas.is_some() && st.texture != 0 && !splash;
             (gl.active_texture)(LUT_UNIT);
             (gl.bind_texture)(TEXTURE_2D, if graded { st.texture } else { 0 });
             (gl.active_texture)(TEXTURE0);

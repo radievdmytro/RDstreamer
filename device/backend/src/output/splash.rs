@@ -346,9 +346,16 @@ impl Splash {
             let feed = self.feed.lock().unwrap();
             if feed.live.is_some() {
                 frozen = None;
+                crate::output::look::SPLASH.store(false, std::sync::atomic::Ordering::Relaxed);
                 continue;
             }
             let custom = self.custom.lock().unwrap();
+            // The goggles' last picture still gets the HDMI look; the status
+            // screen and a custom image are shown as they are, not bent by
+            // the lens correction
+            let goggles_picture = frozen.is_some() && cfg.freeze_last_frame;
+            crate::output::look::SPLASH
+                .store(!goggles_picture, std::sync::atomic::Ordering::Relaxed);
             let frames = match (&frozen, &*custom) {
                 (Some(frozen), _) if cfg.freeze_last_frame => frozen,
                 (_, Some(_)) if !over_image.is_empty() => &over_image,
