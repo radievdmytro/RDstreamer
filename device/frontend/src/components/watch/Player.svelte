@@ -25,6 +25,8 @@
     stats = $bindable([]),
     history = $bindable({ t: [], kbps: [], bufferMs: [] }),
     graded = null,
+    transportChoice = null,
+    qualityChoice = null,
   }: {
     status?: Status;
     theater?: boolean;
@@ -33,6 +35,9 @@
     history?: PlayerHistory;
     /** Draw the picture through the HDMI look (Display → Image preview) */
     graded?: { display: AllSettings["display"]; split: number } | null;
+    /** A viewer's own choice, over the device's settings */
+    transportChoice?: ViewerTransport | null;
+    qualityChoice?: ViewerQuality | null;
   } = $props();
 
   const HISTORY = 120;
@@ -119,17 +124,19 @@
   // Admins wait for the settings, so the first connection already uses the
   // right transport. Viewers can't read those and go by the login status
   const transport = $derived<ViewerTransport | null>(
-    settings.saved
-      ? settings.saved.viewer.transport
-      : !auth.admin || settings.loadError
-        ? auth.transport
-        : null,
+    transportChoice
+      ? transportChoice
+      : settings.saved
+        ? settings.saved.viewer.transport
+        : !auth.admin || settings.loadError
+          ? auth.transport
+          : null,
   );
 
   // Original, light, or auto: the original until this viewer falls behind,
   // then the lighter copy for the rest of the visit
   const quality = $derived<ViewerQuality>(
-    settings.saved?.viewer.quality ?? auth.quality ?? "auto",
+    qualityChoice ?? settings.saved?.viewer.quality ?? auth.quality ?? "auto",
   );
   let lagging = $state(false);
   const light = $derived(
