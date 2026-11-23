@@ -64,6 +64,8 @@ pub struct Services {
     pub legacy: Arc<crate::input::legacy::LegacySource>,
     pub rtmp_input: Arc<crate::input::rtmp::RtmpSource>,
     pub passthrough: Arc<crate::input::passthrough::Passthrough>,
+    /// Decoded pictures, for the browsers' light stream
+    pub decoder: Arc<crate::output::decoded::SharedDecoder>,
 }
 
 pub fn router<S>(services: Services) -> Router<S> {

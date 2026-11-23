@@ -1,6 +1,7 @@
 pub mod api;
 pub mod auth;
 mod control;
+mod light;
 mod rtc;
 pub mod terminal;
 mod ui;
@@ -23,6 +24,8 @@ use rtc::AccessUnit;
 struct AppState {
     api: Arc<API>,
     au_tx: broadcast::Sender<AccessUnit>,
+    /// The lighter copy for browsers on weak WiFi
+    light: Arc<light::LightStream>,
     peers: Arc<Mutex<Vec<Arc<RTCPeerConnection>>>>,
     socket_viewers: Arc<AtomicUsize>,
     camera: Arc<CameraCommands>,
@@ -30,7 +33,26 @@ struct AppState {
     services: crate::web::api::Services,
 }
 
+/// What a browser asks for: `?quality=light` for the lighter copy
+#[derive(serde::Deserialize, Default)]
+struct Want {
+    #[serde(default)]
+    quality: Option<String>,
+}
+
 impl AppState {
+    /// The video for one browser: the light stream when asked for and it
+    /// runs, else the original. The guard keeps the light encoder going
+    fn video_for(&self, want: &Want) -> (broadcast::Receiver<AccessUnit>, Option<light::Watching>) {
+        if want.quality.as_deref() == Some("light") {
+            match self.light.watch() {
+                Ok((rx, watching)) => return (rx, Some(watching)),
+                Err(e) => eprintln!("[light] {e}; sending the original"),
+            }
+        }
+        (self.au_tx.subscribe(), None)
+    }
+
     /// The limit covers both transports together, since both cost CPU
     async fn viewer_limit_reached(&self) -> bool {
         let max = self.services.store.get().viewer.max_viewers as usize;
@@ -155,6 +177,7 @@ pub fn start(
             let state = AppState {
                 api,
                 au_tx,
+                light: light::LightStream::new(Arc::clone(&services.decoder)),
                 peers: Arc::new(Mutex::new(Vec::new())),
                 socket_viewers: Arc::new(AtomicUsize::new(0)),
                 camera: Arc::new(CameraCommands::new()),

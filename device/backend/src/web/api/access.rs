@@ -17,6 +17,7 @@ pub(super) struct AuthStatus {
     access: Access,
     /// How to fetch the video: viewers can't read the settings for it
     transport: crate::settings::ViewerTransport,
+    quality: crate::settings::ViewerQuality,
 }
 
 pub(super) async fn auth_status(
@@ -28,6 +29,7 @@ pub(super) async fn auth_status(
         protect_viewing: sv.auth.protect_viewing(),
         access: sv.auth.access(&headers),
         transport: sv.store.get().viewer.transport,
+        quality: sv.store.get().viewer.quality,
     })
 }
 

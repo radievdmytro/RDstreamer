@@ -16,8 +16,9 @@ const MAX_QUEUED: usize = 15;
 pub(super) async fn video_ws_handler(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,
+    axum::extract::Query(want): axum::extract::Query<super::Want>,
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| video_socket(socket, state))
+    ws.on_upgrade(move |socket| video_socket(socket, state, want))
 }
 
 struct ViewerSlot(std::sync::Arc<std::sync::atomic::AtomicUsize>);
@@ -30,7 +31,7 @@ impl Drop for ViewerSlot {
 
 /// Each binary message is one access unit: an 8-byte big-endian timestamp in
 /// microseconds, then the Annex B bytes
-async fn video_socket(mut socket: WebSocket, state: AppState) {
+async fn video_socket(mut socket: WebSocket, state: AppState, want: super::Want) {
     // A browser can't read the HTTP status of a refused upgrade, but it can
     // read a close code
     if state.viewer_limit_reached().await {
@@ -47,7 +48,7 @@ async fn video_socket(mut socket: WebSocket, state: AppState) {
 
     eprintln!("[web] video socket viewer connected");
     let (mut sink, mut stream) = socket.split();
-    let mut rx = state.au_tx.subscribe();
+    let (mut rx, _light) = state.video_for(&want);
     let mut synced = false;
     let mut base: Option<Instant> = None;
 

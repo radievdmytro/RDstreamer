@@ -152,6 +152,11 @@ impl SharedDecoder {
         })
     }
 
+    /// The Pi's hardware decoder (and so its encoder and image processor)
+    pub fn hardware(&self) -> bool {
+        self.hardware
+    }
+
     /// Hands `consumer` every picture until the subscription is dropped
     pub fn subscribe(
         self: &Arc<Self>,
@@ -356,7 +361,7 @@ impl Drop for Subscription {
 /// Keeps an even share of the pictures to bring their rate down to the
 /// limit, e.g. 3 of every 5 from 50 fps to 30. videorate went by arrival
 /// times, and as the goggles' jitter, it dropped two in a row now and then
-struct Thinner {
+pub(crate) struct Thinner {
     max_fps: f64,
     /// Seconds between pictures, smoothed
     interval: f64,
@@ -365,7 +370,7 @@ struct Thinner {
 }
 
 impl Thinner {
-    fn new(max_fps: u32) -> Self {
+    pub(crate) fn new(max_fps: u32) -> Self {
         Self {
             max_fps: max_fps as f64,
             interval: 0.0,
@@ -375,7 +380,7 @@ impl Thinner {
     }
 
     /// Whether to keep the picture that arrived `at` seconds
-    fn keep(&mut self, at: f64) -> bool {
+    pub(crate) fn keep(&mut self, at: f64) -> bool {
         if let Some(last) = self.last {
             let gap = at - last;
             self.interval = if self.interval > 0.0 {

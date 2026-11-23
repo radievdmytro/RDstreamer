@@ -1,4 +1,4 @@
-import type { ViewerTransport } from "@/types/settings";
+import type { ViewerQuality, ViewerTransport } from "@/types/settings";
 
 export type Access = "none" | "viewer" | "admin";
 
@@ -7,4 +7,5 @@ export interface AuthStatus {
   protect_viewing: boolean;
   access: Access;
   transport: ViewerTransport;
+  quality: ViewerQuality;
 }

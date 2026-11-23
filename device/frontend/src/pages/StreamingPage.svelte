@@ -56,6 +56,19 @@
     { label: "WebRTC", value: "webrtc" },
   ];
 
+  const QUALITIES = [
+    { label: "Auto", value: "auto" },
+    { label: "Original", value: "original" },
+    { label: "Light", value: "light" },
+  ];
+  const QUALITY_HELP: Record<string, string> = {
+    auto: "The goggles' own video; a viewer that falls behind (weak WiFi) switches to the light copy by itself. Recommended.",
+    original:
+      "The goggles' own video, 11-25 Mbit/s: sharpest, but needs strong WiFi.",
+    light:
+      "720p at 30 fps, about 3.5 Mbit/s, encoded again on the Pi: steady on weak WiFi and with several viewers, a little softer and ~0.1 s later. HDMI, recording and streams keep the original.",
+  };
+
   const url = $derived(
     `rtsp://${saved.auth ? `${encodeURIComponent(saved.username)}:••••@` : ""}${location.hostname}:${saved.port}${saved.path}`,
   );
@@ -173,6 +186,15 @@
             options={TRANSPORTS}
             value={viewer.transport}
             onchange={(v) => (viewer.transport = v)}
+          />
+        </div>
+      </Field>
+      <Field label="Quality" help={QUALITY_HELP[viewer.quality]} stacked>
+        <div class="w-full sm:w-80">
+          <Segmented
+            options={QUALITIES}
+            value={viewer.quality}
+            onchange={(v) => (viewer.quality = v)}
           />
         </div>
       </Field>

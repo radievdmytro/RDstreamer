@@ -98,7 +98,12 @@ export interface Settings {
       led_pin: number | null;
     };
   };
-  viewer: { transport: ViewerTransport; max_viewers: number };
+  viewer: {
+    transport: ViewerTransport;
+    max_viewers: number;
+    /** Original, a lighter 720p copy, or the light one once a viewer lags */
+    quality: ViewerQuality;
+  };
   display: {
     hdmi_output: boolean;
     /** `WxH@Hz` from the screen's list, or "auto" */
@@ -280,6 +285,7 @@ export interface SrtStatus {
 }
 
 export type ViewerTransport = "websocket" | "webrtc";
+export type ViewerQuality = "original" | "light" | "auto";
 
 export type Section = keyof Settings;
 

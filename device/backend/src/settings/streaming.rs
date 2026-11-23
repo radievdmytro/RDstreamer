@@ -319,6 +319,19 @@ pub enum ViewerTransport {
 pub struct ViewerSettings {
     pub transport: ViewerTransport,
     pub max_viewers: u8,
+    pub quality: ViewerQuality,
+}
+
+/// What browsers get: the goggles' own video, a lighter copy (720p30 at a
+/// few Mbit/s, encoded again on the Pi), or the original until a viewer
+/// falls behind and the light one from then on
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ViewerQuality {
+    Original,
+    Light,
+    #[default]
+    Auto,
 }
 
 #[cfg(test)]

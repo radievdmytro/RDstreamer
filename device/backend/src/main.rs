@@ -125,7 +125,7 @@ fn run() -> anyhow::Result<()> {
     let fanout = Arc::new(Fanout {
         state: Arc::clone(&input),
         splash: Arc::clone(&splash),
-        decoder,
+        decoder: Arc::clone(&decoder),
         rtsp: Arc::clone(&rtsp_server),
         srt: Arc::clone(&srt),
         rtmp: Arc::clone(&rtmp),
@@ -179,6 +179,7 @@ fn run() -> anyhow::Result<()> {
         rtmp_input,
         passthrough: Arc::clone(&passthrough),
         overlay: Arc::clone(&overlay),
+        decoder,
     };
 
     web::start(listener, services, web_rx, state_rx, input_rx);

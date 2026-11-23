@@ -5,7 +5,7 @@
   import { recording, duration } from "@/stores/recording.svelte";
   import { auth } from "@/stores/auth.svelte";
   import { settings } from "@/stores/settings.svelte";
-  import type { ViewerTransport } from "@/types/settings";
+  import type { ViewerQuality, ViewerTransport } from "@/types/settings";
   import { SocketStream, socketStreamSupported } from "@/lib/socketStream";
   import { api } from "@/api/client";
   import { control } from "@/stores/control.svelte";
@@ -126,6 +126,37 @@
         : null,
   );
 
+  // Original, light, or auto: the original until this viewer falls behind,
+  // then the lighter copy for the rest of the visit
+  const quality = $derived<ViewerQuality>(
+    settings.saved?.viewer.quality ?? auth.quality ?? "auto",
+  );
+  let lagging = $state(false);
+  const light = $derived(
+    quality === "light" || (quality === "auto" && lagging),
+  );
+  const query = $derived(light ? "?quality=light" : "");
+  /** Seconds in a row the picture has been struggling */
+  let strained = 0;
+  let lossNow: number | null = null;
+
+  // Behind by over 0.6 s, or losing packets, for a few seconds: on to the
+  // light stream
+  function watchStrain() {
+    if (quality !== "auto" || lagging || status !== "playing") {
+      strained = 0;
+      return;
+    }
+    const struggling =
+      (bufferMsNow !== null && bufferMsNow > 600) ||
+      (lossNow !== null && lossNow > 3);
+    strained = struggling ? strained + 1 : 0;
+    if (strained >= 4) {
+      strained = 0;
+      lagging = true;
+    }
+  }
+
   $effect(() => {
     stats = [
       { k: "Res", label: "Resolution", v: resolution },
@@ -140,6 +171,17 @@
         k: "Via",
         label: "Transport",
         v: transport === "websocket" ? "WebSocket" : "WebRTC",
+      },
+      {
+        k: "Quality",
+        label: "Quality",
+        v: light
+          ? lagging
+            ? "Light (auto)"
+            : "Light"
+          : quality === "auto"
+            ? "Original (auto)"
+            : "Original",
       },
     ];
   });
@@ -195,12 +237,14 @@
       const dLost = (s.packetsLost ?? 0) - lastLost;
       const dRecv = (s.packetsReceived ?? 0) - lastReceived;
       if (lastReceived && dRecv >= 0 && dLost >= 0 && dRecv + dLost > 0) {
-        loss = `${((dLost / (dRecv + dLost)) * 100).toFixed(1)}%`;
+        lossNow = (dLost / (dRecv + dLost)) * 100;
+        loss = `${lossNow.toFixed(1)}%`;
       }
       lastLost = s.packetsLost ?? 0;
       lastReceived = s.packetsReceived ?? 0;
     });
     record();
+    watchStrain();
   }
 
   function formatBitrate(bps: number) {
@@ -220,13 +264,17 @@
   }
 
   function startSocket() {
-    socket = new SocketStream(videoEl, {
-      onplaying: () => (status = "playing"),
-      onclose: (busy) => {
-        status = busy ? "busy" : "disconnected";
-        retry(busy ? 5000 : 1500);
+    socket = new SocketStream(
+      videoEl,
+      {
+        onplaying: () => (status = "playing"),
+        onclose: (busy) => {
+          status = busy ? "busy" : "disconnected";
+          retry(busy ? 5000 : 1500);
+        },
       },
-    });
+      query,
+    );
     statsTimer = setInterval(pollSocketStats, 1000);
   }
 
@@ -240,6 +288,7 @@
     kbpsNow = s.bitsPerSecond / 1000;
     bufferMsNow = s.buffered * 1000;
     record();
+    watchStrain();
   }
 
   async function startRtc() {
@@ -272,7 +321,7 @@
       await pc.setLocalDescription(offer);
       await waitForIceGathering(pc);
 
-      const res = await fetch("/api/offer", {
+      const res = await fetch(`/api/offer${query}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(pc.localDescription),
@@ -313,6 +362,8 @@
     loss = "—";
     kbpsNow = null;
     bufferMsNow = null;
+    lossNow = null;
+    strained = 0;
     try {
       pc?.close();
     } catch {}
@@ -340,6 +391,9 @@
 
   $effect(() => {
     if (!transport) return;
+    // Another quality (switched to, or chosen in the settings) is another
+    // connection
+    void query;
     untrack(reconnect);
   });
 

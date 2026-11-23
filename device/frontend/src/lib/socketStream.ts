@@ -73,9 +73,13 @@ export class SocketStream {
   #bytesAt = performance.now();
   #bitsPerSecond = 0;
 
-  constructor(video: HTMLVideoElement, events: SocketStreamEvents) {
+  #query: string;
+
+  /** `query`: e.g. "?quality=light" for the lighter copy */
+  constructor(video: HTMLVideoElement, events: SocketStreamEvents, query = "") {
     this.#video = video;
     this.#events = events;
+    this.#query = query;
     // ManagedMediaSource (Safari) refuses to play without this
     video.disableRemotePlayback = true;
     video.srcObject = null;
@@ -133,7 +137,9 @@ export class SocketStream {
 
   #connect() {
     const proto = location.protocol === "https:" ? "wss" : "ws";
-    const ws = new WebSocket(`${proto}://${location.host}/api/video`);
+    const ws = new WebSocket(
+      `${proto}://${location.host}/api/video${this.#query}`,
+    );
     ws.binaryType = "arraybuffer";
     ws.onmessage = (ev) => this.#receive(ev.data as ArrayBuffer);
     ws.onclose = (ev) => {

@@ -242,12 +242,13 @@ pub(super) struct AnswerResp {
 
 pub(super) async fn offer_handler(
     State(state): State<AppState>,
+    axum::extract::Query(want): axum::extract::Query<super::Want>,
     Json(offer): Json<OfferReq>,
 ) -> Result<Json<AnswerResp>, StatusCode> {
     if state.viewer_limit_reached().await {
         return Err(StatusCode::SERVICE_UNAVAILABLE);
     }
-    match negotiate(state, offer).await {
+    match negotiate(state, offer, want).await {
         Ok(answer) => Ok(Json(answer)),
         Err(e) => {
             eprintln!("[web] negotiate error: {}", e);
@@ -256,7 +257,11 @@ pub(super) async fn offer_handler(
     }
 }
 
-async fn negotiate(state: AppState, offer: OfferReq) -> anyhow::Result<AnswerResp> {
+async fn negotiate(
+    state: AppState,
+    offer: OfferReq,
+    want: super::Want,
+) -> anyhow::Result<AnswerResp> {
     let config = RTCConfiguration {
         ice_servers: vec![],
         ..Default::default()
@@ -281,12 +286,23 @@ async fn negotiate(state: AppState, offer: OfferReq) -> anyhow::Result<AnswerRes
         while rtp_sender.read(&mut rtcp_buf).await.is_ok() {}
     });
 
-    let au_rx = state.au_tx.subscribe();
+    let (au_rx, watching) = state.video_for(&want);
+    // Let go when the browser does, which stops the light encoder after the
+    // last one
+    let watching = Arc::new(std::sync::Mutex::new(watching));
     tokio::spawn(client_sender(au_rx, Arc::clone(&track)));
 
     let peers_for_cb = Arc::clone(&state.peers);
     let pc_weak = Arc::downgrade(&pc);
     pc.on_peer_connection_state_change(Box::new(move |s: RTCPeerConnectionState| {
+        if matches!(
+            s,
+            RTCPeerConnectionState::Failed
+                | RTCPeerConnectionState::Disconnected
+                | RTCPeerConnectionState::Closed
+        ) {
+            watching.lock().unwrap().take();
+        }
         let peers_for_cb = Arc::clone(&peers_for_cb);
         let pc_weak = pc_weak.clone();
         Box::pin(async move {

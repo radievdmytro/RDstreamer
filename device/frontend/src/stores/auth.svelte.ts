@@ -1,6 +1,6 @@
 import { api, message, setUnauthorizedHandler } from "@/api/client";
 import type { Access } from "@/types/auth";
-import type { ViewerTransport } from "@/types/settings";
+import type { ViewerQuality, ViewerTransport } from "@/types/settings";
 
 const RETRY_MS = 3000;
 
@@ -11,6 +11,7 @@ class AuthStore {
   protectViewing = $state(false);
   access = $state<Access>("none");
   transport = $state<ViewerTransport>("websocket");
+  quality = $state<ViewerQuality>("auto");
 
   admin = $derived(this.access === "admin");
   canView = $derived(this.access !== "none");
@@ -36,6 +37,7 @@ class AuthStore {
       this.protectViewing = s.protect_viewing;
       this.access = s.access;
       this.transport = s.transport;
+      this.quality = s.quality ?? "auto";
       this.loaded = true;
       this.unreachable = null;
     } catch (e) {
