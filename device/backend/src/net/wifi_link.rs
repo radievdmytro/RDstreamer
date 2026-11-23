@@ -116,6 +116,14 @@ pub async fn link() -> Link {
 pub async fn survey() -> Result<Survey, String> {
     let info = parse_info(&run("iw", &["dev", IFACE, "info"]).await.unwrap_or_default());
     let current = info.channel;
+    // A second WiFi adapter plugged in listens freely, whatever wlan0 does
+    if let Some(other) = other_adapter() {
+        let _ = run("ip", &["link", "set", "dev", &other, "up"]).await;
+        match scan(&other, false).await {
+            Ok(out) => return Ok(summarise(parse_scan(&out), current)),
+            Err(e) => eprintln!("[wifi] scan on {other}: {e}"),
+        }
+    }
     let out = if info.role == Role::Ap {
         // The Pi's chip refuses to scan on the interface that broadcasts
         // (-52 or -95, even with ap-force), but it runs a second, ordinary
@@ -135,6 +143,19 @@ pub async fn survey() -> Result<Survey, String> {
     };
     out.map(|out| summarise(parse_scan(&out), current))
         .map_err(|e| scan_error(&e))
+}
+
+/// A WiFi adapter besides the built-in one, e.g. a USB stick as wlan1
+fn other_adapter() -> Option<String> {
+    let mut names: Vec<String> = std::fs::read_dir("/sys/class/net")
+        .ok()?
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().join("wireless").exists())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| n != IFACE && !n.starts_with("rdscan"))
+        .collect();
+    names.sort();
+    names.into_iter().next()
 }
 
 /// One scan; the radio answers "busy" while it finishes something else, and
