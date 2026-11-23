@@ -703,9 +703,10 @@ async fn apply_wifi2(cfg: &crate::settings::Wifi2Settings) -> Result<(), String>
         "60",
         "ssid",
         cfg.ssid.as_str(),
-        // 2 = no power save, which adds latency spikes
+        // 3 = power save on: a USB adapter at full tilt can pull the Pi's
+        // supply under, and for the internet a few ms of latency don't matter
         "802-11-wireless.powersave",
-        "2",
+        "3",
         // Preferred for the internet over the built-in WiFi as a client
         "ipv4.route-metric",
         "550",
