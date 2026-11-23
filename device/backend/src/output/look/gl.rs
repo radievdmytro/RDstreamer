@@ -99,6 +99,7 @@ type DeleteTextures = extern "C" fn(i32, *const u32);
 type TexParameteri = extern "C" fn(u32, u32, i32);
 type PixelStorei = extern "C" fn(u32, i32);
 type TexImage2d = extern "C" fn(u32, i32, i32, i32, i32, i32, u32, u32, *const c_void);
+type Finish = extern "C" fn();
 
 /// The few GL calls GStreamer has no wrapper for
 struct Gl {
@@ -109,6 +110,7 @@ struct Gl {
     tex_parameteri: TexParameteri,
     pixel_storei: PixelStorei,
     tex_image_2d: TexImage2d,
+    finish: Finish,
 }
 
 impl Gl {
@@ -132,6 +134,7 @@ impl Gl {
             tex_parameteri: get!("glTexParameteri", TexParameteri),
             pixel_storei: get!("glPixelStorei", PixelStorei),
             tex_image_2d: get!("glTexImage2D", TexImage2d),
+            finish: get!("glFinish", Finish),
         })
     }
 }
@@ -326,6 +329,11 @@ mod imp {
             shader.set_uniform_1f("levels", if levels { 1.0 } else { 0.0 });
             self.obj()
                 .render_to_target_with_shader(input, output, shader);
+            // The picture goes to the screen as a dmabuf with nothing to say
+            // when the GPU is done with it: shown early, the screen got half
+            // of this frame over the last one in that buffer, and moving
+            // things doubled. Done drawing before it's handed on
+            (gl.finish)();
             Ok(())
         }
     }
