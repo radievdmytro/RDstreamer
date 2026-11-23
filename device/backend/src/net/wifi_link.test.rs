@@ -78,7 +78,7 @@ const SCAN: &str = "BSS 11:22:33:44:55:01(on wlan0)
 \tsignal: -45.00 dBm
 \tSSID: Neighbour
 \tDS Parameter set: channel 1
-BSS 11:22:33:44:55:02(on wlan0) -- associated
+BSS 66:77:88:99:aa:02(on wlan0) -- associated
 \tfreq: 2412.0
 \tsignal: -60.00 dBm
 \tSSID: Other
@@ -167,4 +167,25 @@ fn a_second_interface_gets_its_own_address() {
 #[test]
 fn the_chip_refusing_to_scan_is_explained() {
     assert!(scan_error("command failed: Invalid exchange (-52)").contains("can't scan"));
+}
+
+#[test]
+fn a_router_with_two_names_is_one_radio() {
+    let b = |bssid: &str, channel: u32, signal_dbm: i32| Bss {
+        bssid: bssid.into(),
+        channel,
+        freq: 2407 + channel * 5,
+        signal_dbm,
+        ..Default::default()
+    };
+    let nets = vec![
+        b("50:c7:bf:00:11:20", 9, -54),
+        b("50:c7:bf:00:11:21", 9, -58), // same router, next address
+        b("52:c7:bf:00:11:20", 9, -60), // same router, local bit
+        b("50:c7:bf:00:11:21", 1, -60), // other channel: another radio
+        b("aa:bb:cc:dd:ee:ff", 9, -70),
+    ];
+    let r = radios(&nets);
+    assert_eq!(r.len(), 3);
+    assert_eq!(r[0].signal_dbm, -54);
 }

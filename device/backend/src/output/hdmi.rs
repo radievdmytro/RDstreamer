@@ -508,11 +508,13 @@ fn build(
     };
     let description = if look {
         // The Pi's image processor; elsewhere, the processor does it
-        let convert = if gst::ElementFactory::find("v4l2convert").is_some() {
+        let isp = gst::ElementFactory::find("v4l2convert").is_some();
+        let convert = if isp {
             "v4l2convert output-io-mode=dmabuf-import"
         } else {
             "videoconvertscale"
         };
+        crate::output::look::VIDEO_LEVELS.store(isp, Ordering::Relaxed);
         let size = match cfg.look.quality {
             crate::settings::LookQuality::Speed => ",height=720,pixel-aspect-ratio=1/1",
             crate::settings::LookQuality::Quality => "",

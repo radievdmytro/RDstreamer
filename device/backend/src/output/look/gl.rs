@@ -51,6 +51,8 @@ uniform float k2;
 uniform float scale;
 uniform vec2 offset;
 uniform float aspect;
+// 1 when the picture comes in video levels (black at 16, white at 235)
+uniform float levels;
 
 // Where this output point samples the picture: look::Dewarp::source
 vec2 warp(vec2 uv) {
@@ -82,6 +84,9 @@ void main() {
         return;
     }
     vec4 c = texture2D(tex, uv);
+    if (levels > 0.5) {
+        c.rgb = clamp((c.rgb - 16.0 / 255.0) * (255.0 / 219.0), 0.0, 1.0);
+    }
     vec3 graded = lookup(clamp(c.rgb, 0.0, 1.0));
     gl_FragColor = vec4(mix(c.rgb, graded, strength), 1.0);
 }
@@ -309,6 +314,9 @@ mod imp {
             shader.set_uniform_1f("scale", dewarp.scale);
             shader.set_uniform_2f("offset", dewarp.offset[0], dewarp.offset[1]);
             shader.set_uniform_1f("aspect", aspect);
+            let levels =
+                crate::output::look::VIDEO_LEVELS.load(std::sync::atomic::Ordering::Relaxed);
+            shader.set_uniform_1f("levels", if levels { 1.0 } else { 0.0 });
             self.obj()
                 .render_to_target_with_shader(input, output, shader);
             Ok(())

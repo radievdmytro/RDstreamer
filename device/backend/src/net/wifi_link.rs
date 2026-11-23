@@ -266,17 +266,20 @@ fn scan_error(e: &str) -> String {
 fn summarise(all: Vec<Bss>, current: Option<u32>) -> Survey {
     let (mut networks, five): (Vec<Bss>, Vec<Bss>) = all.into_iter().partition(|b| b.freq < 3000);
     networks.sort_by_key(|b| std::cmp::Reverse(b.signal_dbm));
+    // A router with several names (a guest network, say) is one radio: the
+    // air it takes counts once
+    let radios = radios(&networks);
     let channels: Vec<ChannelLoad> = SURVEY_CHANNELS
         .map(|channel| ChannelLoad {
             channel,
-            networks: networks.iter().filter(|b| b.channel == channel).count(),
-            load: (load_on(channel, &networks) * 100.0).round() / 100.0,
+            networks: radios.iter().filter(|b| b.channel == channel).count(),
+            load: (load_on(channel, &radios) * 100.0).round() / 100.0,
         })
         .collect();
     let best = [1, 6, 11]
         .into_iter()
         .filter(|c| AP_CHANNELS.contains(c))
-        .min_by(|a, b| load_on(*a, &networks).total_cmp(&load_on(*b, &networks)))
+        .min_by(|a, b| load_on(*a, &radios).total_cmp(&load_on(*b, &radios)))
         .unwrap_or(6);
     Survey {
         networks,
@@ -285,6 +288,34 @@ fn summarise(all: Vec<Bss>, current: Option<u32>) -> Survey {
         best,
         current,
     }
+}
+
+/// One entry per radio, the strongest of its names. Names one router
+/// broadcasts share a channel and addresses that differ only in the first
+/// octet (the locally administered bit) or the last
+pub(crate) fn radios(networks: &[Bss]) -> Vec<Bss> {
+    let octets = |m: &str| -> Vec<String> { m.split(':').map(str::to_string).collect() };
+    let same_radio = |a: &Bss, b: &Bss| {
+        let (x, y) = (octets(&a.bssid), octets(&b.bssid));
+        a.channel == b.channel
+            && x.len() == 6
+            && y.len() == 6
+            && (x[..5] == y[..5] || x[1..] == y[1..])
+    };
+    let mut radios: Vec<Bss> = Vec::new();
+    // Strongest first, so the one kept is the loudest name
+    for b in networks {
+        if !radios.iter().any(|r| same_radio(r, b)) {
+            radios.push(Bss {
+                bssid: b.bssid.clone(),
+                ssid: b.ssid.clone(),
+                channel: b.channel,
+                freq: b.freq,
+                signal_dbm: b.signal_dbm,
+            });
+        }
+    }
+    radios
 }
 
 /// A 2.4 GHz network spreads over its channel and two either side, fading

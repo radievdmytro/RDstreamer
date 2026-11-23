@@ -24,7 +24,7 @@
     fan.start();
     wifi.start();
     checkUpdate();
-    updateTimer = setInterval(checkUpdate, 10 * 60 * 1000);
+    updateTimer = setInterval(checkUpdate, 2 * 60 * 1000);
   });
   onDestroy(() => {
     metrics.stop();
@@ -44,11 +44,34 @@
       // Not shown
     }
   }
-  const ready = $derived(
-    update?.staged && update.staged !== update.current && !update.installing
-      ? update.staged
-      : null,
-  );
+  // What runs, and whether a newer one is waiting: downloaded and checked,
+  // or found and not downloaded yet (checking automatically is off)
+  const version = $derived.by(() => {
+    if (!update) return null;
+    if (update.installing)
+      return {
+        label: `Installing ${update.staged ?? "update"}…`,
+        title: "Installing the update: video stops for a few seconds",
+        news: true,
+      };
+    if (update.staged && update.staged !== update.current)
+      return {
+        label: `Update ${update.staged} ready`,
+        title: `RDstreamer ${update.staged} is downloaded and checked. Install it from System → Updates (running ${update.current})`,
+        news: true,
+      };
+    if (update.available?.newer)
+      return {
+        label: `${update.available.version} available`,
+        title: `RDstreamer ${update.available.version} is out: download and install it from System → Updates (running ${update.current})`,
+        news: true,
+      };
+    return {
+      label: `v${update.current}`,
+      title: `RDstreamer ${update.current}: the latest as far as the last check knows`,
+      news: false,
+    };
+  });
 
   const temp = $derived(metrics.latest("temp"));
   const cpu = $derived(metrics.latest("cpu"));
@@ -189,14 +212,18 @@
     </a>
   {/if}
 
-  {#if ready}
+  {#if version}
     <a
       href="/system/updates"
-      class="{chip} border-primary/50 bg-primary/15 text-primary hover:border-primary hover:bg-primary/20"
-      title="RDstreamer {ready} is downloaded and checked: install it from System → Updates"
+      class="{chip} {version.news
+        ? 'border-primary/50 bg-primary/15 text-primary hover:border-primary hover:bg-primary/20'
+        : 'text-muted'}"
+      title={version.title}
     >
-      <Download class="h-3.5 w-3.5" aria-hidden="true" />
-      Update {ready}
+      {#if version.news}
+        <Download class="h-3.5 w-3.5" aria-hidden="true" />
+      {/if}
+      {version.label}
     </a>
   {/if}
 
