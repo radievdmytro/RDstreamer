@@ -40,6 +40,16 @@ export interface UpdateStatus {
   /** A newer release, once a check has found one */
   available: Release | null;
   installing: boolean;
+  /** While a package downloads: how far it got */
+  downloading: {
+    version: string;
+    bytes: number;
+    /** Known for releases from 1.7 on */
+    total: number | null;
+    seconds: number;
+  } | null;
+  /** While installing: the installer's last line */
+  step: string | null;
   failure: {
     version: string;
     /** It installed but never answered, and the version before is back on */

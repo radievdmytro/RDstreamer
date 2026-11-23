@@ -38,6 +38,7 @@ pub struct Settings {
     pub input: InputSettings,
     pub device: DeviceSettings,
     pub wifi: WifiSettings,
+    pub wifi2: Wifi2Settings,
     pub ethernet: EthernetSettings,
     pub rtsp: RtspSettings,
     pub srt: SrtSettings,

@@ -362,3 +362,13 @@ body::after {
     transition: none;
   }
 }
+
+/* A bar that moves while there's no way to tell how far along it is */
+@keyframes slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}

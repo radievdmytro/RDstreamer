@@ -209,11 +209,12 @@ jobs:
           extra=()
           if [ "${{ needs.package.outputs.updatable }}" = true ]; then
             deb=$(ls *.deb)
-            python3 - "$VERSION" "https://github.com/${{ github.repository }}/releases/download/$tag/$deb" "$(cat "$deb.sig")" "${NOTES:-$NAME}" >manifest.json <<'PY'
-          import json, sys
-          version, url, signature, notes = sys.argv[1:]
+            python3 - "$VERSION" "https://github.com/${{ github.repository }}/releases/download/$tag/$deb" "$(cat "$deb.sig")" "${NOTES:-$NAME}" "$deb" >manifest.json <<'PY'
+          import json, os, sys
+          version, url, signature, notes, deb = sys.argv[1:]
           json.dump({"version": version, "notes": notes,
-                     "packages": {"arm64": {"url": url, "signature": signature}}}, sys.stdout, indent=2)
+                     "packages": {"arm64": {"url": url, "signature": signature,
+                                            "size": os.path.getsize(deb)}}}, sys.stdout, indent=2)
           PY
             cat manifest.json
           else

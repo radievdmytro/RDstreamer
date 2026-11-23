@@ -4,6 +4,8 @@ fn network(wifi: InterfaceStatus, ethernet: Option<InterfaceStatus>) -> NetworkS
     NetworkStatus {
         wifi,
         ethernet,
+        wifi2: None,
+        wifi2_error: None,
         tether: None,
         internet_via: None,
         iphone_support: false,

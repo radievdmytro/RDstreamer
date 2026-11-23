@@ -185,7 +185,9 @@
   // Where streams to the internet leave, when it isn't the WiFi above
   const uplink = $derived.by(() => {
     const dev = link?.uplink;
-    if (!dev || dev.startsWith("wlan")) return null;
+    if (!dev || dev === "wlan0") return null;
+    if (dev.startsWith("wlan") || dev.startsWith("wlx"))
+      return { icon: Wifi, label: "WiFi 2" };
     if (link.uplink_phone) return { icon: Smartphone, label: "Phone" };
     return { icon: Cable, label: "Ethernet" };
   });

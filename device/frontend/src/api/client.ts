@@ -108,6 +108,7 @@ export const api = {
   reset: () => request<Saved>("POST", "/settings/reset"),
   network: () => request<NetworkStatus>("GET", "/network"),
   scan: () => request<ScanResult[]>("GET", "/network/scan"),
+  scanWifi2: () => request<ScanResult[]>("GET", "/network/scan/wifi2"),
   wifiLink: () => request<WifiLink>("GET", "/network/link"),
   wifiSurvey: () => request<WifiSurvey>("GET", "/network/survey"),
   countries: () => request<WifiCountries>("GET", "/network/countries"),

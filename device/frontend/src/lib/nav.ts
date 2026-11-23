@@ -45,13 +45,13 @@ export const SETTINGS_PAGES: NavPage[] = [
   {
     id: "network",
     label: "Network",
-    sections: ["wifi", "ethernet"],
+    sections: ["wifi", "wifi2", "ethernet"],
     icon: Wifi,
     tabs: [
       {
         id: "connectivity",
         label: "Connectivity",
-        sections: ["wifi", "ethernet"],
+        sections: ["wifi", "wifi2", "ethernet"],
       },
       { id: "remote", label: "Remote access", sections: [] },
     ],

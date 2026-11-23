@@ -90,6 +90,7 @@ pub(super) fn validate(s: &Settings) -> Result<(), String> {
     s.display.look.validate()?;
     s.display.dewarp.validate()?;
     s.wifi.validate()?;
+    s.wifi2.validate()?;
     s.ethernet.validate()?;
     s.rtsp.validate()?;
     s.srt.validate()?;
@@ -269,6 +270,10 @@ pub(super) async fn commit(sv: &Services, next: Settings) -> Result<Json<Saved>,
             "Applying WiFi settings. If you're connected over WiFi, you may need to reconnect."
                 .into(),
         );
+    }
+
+    if saved.wifi2 != prev.wifi2 {
+        sv.network.apply_wifi2_later(saved.wifi2.clone());
     }
 
     if saved.ethernet != prev.ethernet {

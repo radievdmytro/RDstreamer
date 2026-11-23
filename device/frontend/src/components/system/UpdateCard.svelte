@@ -14,7 +14,7 @@
 
   let { advanced = $bindable() }: { advanced: Settings["advanced"] } = $props();
 
-  const POLL_MS = 2000;
+  const POLL_MS = 1000;
 
   let status = $state<UpdateStatus | null>(null);
   let busy = $state(false);
@@ -24,14 +24,17 @@
   /** The version being installed, from the request until it's running */
   let installing = $state<string | null>(null);
   /** Seen underway or restarting, so the same version reported again means done */
-  let underway = false;
+  let underway = $state(false);
   let confirm = $state<"install" | "rollback" | null>(null);
   let confirmOpen = $state(false);
   let input: HTMLInputElement;
 
   onMount(() => {
     refresh();
-    const timer = setInterval(() => installing && refresh(), POLL_MS);
+    const timer = setInterval(
+      () => (installing || downloading || status?.downloading) && refresh(),
+      POLL_MS,
+    );
     return () => clearInterval(timer);
   });
 
@@ -90,8 +93,21 @@
     }
   }
 
+  const mb = (b: number) => (b / 1048576).toFixed(1);
+  const rate = (d: NonNullable<UpdateStatus["downloading"]>) =>
+    d.seconds > 0.5 ? d.bytes / d.seconds : 0;
+  // Seconds since the install was asked for, to show it's still moving
+  let installStarted = $state(0);
+  let now = $state(Date.now());
+  $effect(() => {
+    if (!installing) return;
+    const t = setInterval(() => (now = Date.now()), 1000);
+    return () => clearInterval(t);
+  });
+
   async function download() {
     downloading = true;
+    refresh();
     try {
       status = await api.downloadUpdate();
       latest = null;
@@ -124,6 +140,7 @@
         : api.rollBackUpdate());
       underway = false;
       installing = version;
+      installStarted = Date.now();
     } catch (e) {
       snackbar.show(message(e), true);
     }
@@ -134,14 +151,67 @@
   {#if !status}
     <p class="px-4 py-3 text-[13px] text-muted">Loading…</p>
   {:else if installing}
-    <p class="px-4 py-3 text-[13px] text-muted">
-      Installing {installing}… Video stops while RDstreamer restarts, and this
-      page reloads when it's done.
-    </p>
+    <div class="flex flex-col gap-2 px-4 py-3">
+      <p class="text-[13px] text-fg">
+        Installing {installing}…
+        <span class="text-muted tabular-nums"
+          >{Math.max(0, Math.round((now - installStarted) / 1000))} s</span
+        >
+      </p>
+      <div class="h-1.5 overflow-hidden rounded-full bg-surface-2">
+        <div
+          class="h-full w-1/3 animate-[slide_1.4s_ease-in-out_infinite] rounded-full bg-primary"
+        ></div>
+      </div>
+      <p class="truncate font-mono text-[12px] text-muted">
+        {status?.step ??
+          (underway
+            ? "Starting the new version…"
+            : "Preparing the installation…")}
+      </p>
+      <p class="text-[12px] text-faint">
+        Usually under a minute; longer when it fetches packages it needs. Video
+        stops while RDstreamer restarts, and this page reloads when it's done.
+        If the new version doesn't start, the one before comes back.
+      </p>
+    </div>
   {:else}
     <Field label="Installed version">
       <span class="text-[13px] text-muted tabular-nums">{status.current}</span>
     </Field>
+    {#if status.downloading}
+      {@const d = status.downloading}
+      <div class="flex flex-col gap-1.5 px-4 py-3">
+        <div class="flex items-baseline justify-between text-[13px]">
+          <span class="text-fg">Downloading {d.version}</span>
+          <span class="text-muted tabular-nums">
+            {mb(d.bytes)}{d.total ? ` / ${mb(d.total)}` : ""} MB
+            {#if rate(d)}· {Math.round(rate(d) / 1024)} KB/s{/if}
+            · {Math.round(d.seconds)} s
+          </span>
+        </div>
+        <div class="h-1.5 overflow-hidden rounded-full bg-surface-2">
+          {#if d.total}
+            <div
+              class="h-full rounded-full bg-primary transition-[width] duration-700"
+              style="width: {Math.min(100, (d.bytes / d.total) * 100)}%"
+            ></div>
+          {:else}
+            <div
+              class="h-full w-1/3 animate-[slide_1.4s_ease-in-out_infinite] rounded-full bg-primary"
+            ></div>
+          {/if}
+        </div>
+        <p class="text-[12px] text-faint">
+          {#if d.bytes === 0 && d.seconds > 10}
+            Nothing has arrived yet: the device may have no internet. It gives
+            up and says so after 20 s without data.
+          {:else}
+            About 4 MB. Then the signature is checked and it's ready to install.
+          {/if}
+        </p>
+      </div>
+    {/if}
     {#if status.staged}
       <Field
         label="Ready to install"
@@ -169,10 +239,10 @@
           <button
             type="button"
             class={btn.primary}
-            disabled={downloading}
+            disabled={downloading || !!status.downloading}
             onclick={download}
           >
-            {downloading ? "Downloading…" : "Download"}
+            {downloading || status.downloading ? "Downloading…" : "Download"}
           </button>
         </Field>
         {#if latest.notes}

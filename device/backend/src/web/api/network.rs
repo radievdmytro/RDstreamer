@@ -89,3 +89,10 @@ pub(super) async fn tailscale_action(
 pub(super) async fn network_scan() -> Result<impl IntoResponse, ApiError> {
     crate::net::network::scan().await.map(Json).map_err(failed)
 }
+
+pub(super) async fn network_scan_wifi2() -> Result<impl IntoResponse, ApiError> {
+    crate::net::network::scan_wifi2()
+        .await
+        .map(Json)
+        .map_err(failed)
+}

@@ -182,3 +182,12 @@ fn install_script_checks_against_the_same_key() {
     let script = include_str!("../../../packaging/install.sh");
     assert!(script.contains(&format!("PUBLIC_KEY=\"{}\"", PUBLIC_KEY.trim())));
 }
+
+#[test]
+fn the_installers_last_line_says_what_it_does() {
+    assert_eq!(
+        last_line("Reading package lists...\nUnpacking ystreamer (1.5.0-1)...\n\n").as_deref(),
+        Some("Unpacking ystreamer (1.5.0-1)...")
+    );
+    assert_eq!(last_line(""), None);
+}

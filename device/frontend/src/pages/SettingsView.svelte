@@ -64,6 +64,7 @@
   {:else if page.id === "network"}
     <NetworkPage
       bind:wifi={settings.draft.wifi}
+      bind:wifi2={settings.draft.wifi2}
       bind:ethernet={settings.draft.ethernet}
       {tab}
     />

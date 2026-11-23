@@ -30,6 +30,13 @@ export interface Settings {
     };
   };
   device: { hostname: string; timezone: string };
+  /** A second WiFi adapter (USB) joining a network for the internet */
+  wifi2: {
+    enabled: boolean;
+    ssid: string;
+    password: string;
+    allow_5ghz: boolean;
+  };
   wifi: {
     mode: WifiMode;
     client: { ssid: string; password: string };

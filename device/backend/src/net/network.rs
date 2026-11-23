@@ -12,6 +12,8 @@ const IFACE: &str = "wlan0";
 const AP_CON: &str = "ystreamer-ap";
 const CLIENT_CON: &str = "ystreamer-wifi";
 const ETH_CON: &str = "ystreamer-eth";
+/// The second WiFi adapter's network
+const WIFI2_CON: &str = "rdstreamer-wifi2";
 /// How long client mode may go without joining before the fallback AP
 const JOIN_TIMEOUT: Duration = Duration::from_secs(60);
 /// How long the device may be unreachable on every interface. Short: an
@@ -38,6 +40,7 @@ pub struct Network {
     fallback: std::sync::Mutex<Option<Fallback>>,
     applying: AtomicBool,
     last_error: std::sync::Mutex<Option<String>>,
+    wifi2_error: std::sync::Mutex<Option<String>>,
 }
 
 #[derive(Clone)]
@@ -54,6 +57,9 @@ pub struct NetworkStatus {
     pub ethernet: Option<InterfaceStatus>,
     /// A phone sharing its connection over USB
     pub tether: Option<InterfaceStatus>,
+    /// A second WiFi adapter, when one is plugged in
+    pub wifi2: Option<InterfaceStatus>,
+    pub wifi2_error: Option<String>,
     /// Interface holding the default route, i.e. where streams to the
     /// internet leave
     pub internet_via: Option<String>,
@@ -333,6 +339,11 @@ impl Network {
             _ => {}
         }
 
+        if s.wifi2.enabled && !has(WIFI2_CON) {
+            eprintln!("[net] setting up the second WiFi adapter");
+            self.apply_wifi2_later(s.wifi2.clone());
+        }
+
         if s.ethernet.mode == EthernetMode::System || has(ETH_CON) {
             return;
         }
@@ -350,6 +361,20 @@ impl Network {
     }
 
     /// Like apply_later, for the wired side
+    /// The second adapter on its own: changing it never touches the
+    /// built-in WiFi, so the access point stays up
+    pub fn apply_wifi2_later(self: &Arc<Self>, cfg: crate::settings::Wifi2Settings) {
+        let this = Arc::clone(self);
+        tokio::spawn(async move {
+            let _guard = this.apply_lock.lock().await;
+            let result = apply_wifi2(&cfg).await;
+            if let Err(e) = &result {
+                eprintln!("[net] second WiFi: {e}");
+            }
+            *this.wifi2_error.lock().unwrap() = result.err();
+        });
+    }
+
     pub fn apply_ethernet_later(self: &Arc<Self>, cfg: EthernetSettings) {
         let this = Arc::clone(self);
         self.applying.store(true, Ordering::SeqCst);
@@ -424,6 +449,15 @@ impl Network {
             }
             None => None,
         };
+        let wifi2 = match second_adapter() {
+            Some(dev) => {
+                let mut st = interface_status(&dev).await;
+                st.product = usb_product(&dev).await;
+                Some(st)
+            }
+            None => None,
+        };
+        let wifi2_error = self.wifi2_error.lock().unwrap().clone();
         let fallback = self.fallback.lock().unwrap().clone();
         // The AP holds wlan0, so a failed join can't fix itself; Ethernet can
         let fallback_resolved = matches!(fallback, Some(Fallback::Stranded))
@@ -441,6 +475,8 @@ impl Network {
             wifi,
             ethernet,
             tether,
+            wifi2,
+            wifi2_error,
             internet_via: default_route_device().await,
             iphone_support: run("which", &["usbmuxd"]).await.is_ok(),
             image: crate::settings::is_image(),
@@ -607,11 +643,91 @@ fn parse_countries(table: &str) -> Vec<Country> {
     countries
 }
 
+/// A WiFi adapter besides the built-in one, e.g. a USB stick as wlan1
+pub fn second_adapter() -> Option<String> {
+    let mut names: Vec<String> = std::fs::read_dir("/sys/class/net")
+        .ok()?
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().join("wireless").exists())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| n != IFACE && !n.starts_with("rdscan"))
+        .collect();
+    names.sort();
+    names.into_iter().next()
+}
+
+/// The second adapter joins its network, or lets go of it. The profile is
+/// tied to the adapter's name, so one plugged in later connects by itself
+async fn apply_wifi2(cfg: &crate::settings::Wifi2Settings) -> Result<(), String> {
+    delete_con(WIFI2_CON).await;
+    if !cfg.enabled {
+        return Ok(());
+    }
+    let dev = second_adapter().unwrap_or_else(|| "wlan1".into());
+    let mut args = vec![
+        "con",
+        "add",
+        "type",
+        "wifi",
+        "ifname",
+        dev.as_str(),
+        "con-name",
+        WIFI2_CON,
+        "autoconnect",
+        "yes",
+        "connection.autoconnect-priority",
+        "60",
+        "ssid",
+        cfg.ssid.as_str(),
+        // 2 = no power save, which adds latency spikes
+        "802-11-wireless.powersave",
+        "2",
+        // Preferred for the internet over the built-in WiFi as a client
+        "ipv4.route-metric",
+        "550",
+    ];
+    if !cfg.allow_5ghz {
+        args.extend(["802-11-wireless.band", "bg"]);
+    }
+    if !cfg.password.is_empty() {
+        args.extend([
+            "wifi-sec.key-mgmt",
+            "wpa-psk",
+            "wifi-sec.psk",
+            cfg.password.as_str(),
+        ]);
+    }
+    run("nmcli", &args).await?;
+    if second_adapter().is_none() {
+        // Saved: it connects once the adapter is plugged in
+        return Ok(());
+    }
+    run("nmcli", &["--wait", "30", "con", "up", WIFI2_CON])
+        .await
+        .map(|_| ())
+        .map_err(|e| {
+            format!(
+                "Couldn't join \"{}\" with the second adapter: {e}",
+                cfg.ssid
+            )
+        })
+}
+
 async fn delete_con(name: &str) {
     let _ = run("nmcli", &["con", "delete", name]).await;
 }
 
 pub async fn scan() -> Result<Vec<ScanResult>, String> {
+    scan_on(IFACE, false).await
+}
+
+/// Networks the second adapter hears, 5 GHz included
+pub async fn scan_wifi2() -> Result<Vec<ScanResult>, String> {
+    let dev = second_adapter().ok_or("No second WiFi adapter is plugged in")?;
+    scan_on(&dev, true).await
+}
+
+async fn scan_on(dev: &str, with_5ghz: bool) -> Result<Vec<ScanResult>, String> {
     let out = run(
         "nmcli",
         &[
@@ -622,7 +738,7 @@ pub async fn scan() -> Result<Vec<ScanResult>, String> {
             "wifi",
             "list",
             "ifname",
-            IFACE,
+            dev,
             "--rescan",
             "yes",
         ],
@@ -640,7 +756,7 @@ pub async fn scan() -> Result<Vec<ScanResult>, String> {
             .and_then(|v| v.parse().ok())
             .unwrap_or(0);
         // Never joined on 5 GHz, so those aren't offered
-        if freq >= 5000 {
+        if freq >= 5000 && !with_5ghz {
             continue;
         }
         let r = ScanResult {

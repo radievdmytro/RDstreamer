@@ -16,6 +16,9 @@ export interface NetworkStatus {
   wifi: InterfaceStatus;
   ethernet: InterfaceStatus | null;
   tether: InterfaceStatus | null;
+  /** A second WiFi adapter, when one is plugged in */
+  wifi2: InterfaceStatus | null;
+  wifi2_error: string | null;
   internet_via: string | null;
   /** usbmuxd is installed, which iPhones need */
   iphone_support: boolean;

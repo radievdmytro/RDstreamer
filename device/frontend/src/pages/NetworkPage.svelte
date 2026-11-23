@@ -18,13 +18,16 @@
   import TailscaleCard from "@/components/network/TailscaleCard.svelte";
   import WireguardCard from "@/components/network/WireguardCard.svelte";
   import ChannelSurvey from "@/components/network/ChannelSurvey.svelte";
+  import Wifi2Card from "@/components/network/Wifi2Card.svelte";
   import { btn } from "@/components/ui/buttons";
   let {
     wifi = $bindable(),
+    wifi2 = $bindable(),
     ethernet = $bindable(),
     tab,
   }: {
     wifi: Settings["wifi"];
+    wifi2: Settings["wifi2"];
     ethernet: Settings["ethernet"];
     tab: string;
   } = $props();
@@ -165,6 +168,8 @@
       return "Internet through the phone over USB";
     if (dev === status.ethernet?.device) return "Internet through Ethernet";
     if (dev === status.wifi.device) return "Internet through WiFi";
+    if (dev === status.wifi2?.device)
+      return "Internet through the second WiFi adapter";
     return `Internet through ${dev}`;
   });
   const bars = (signal: number) => (signal >= 70 ? 3 : signal >= 45 ? 2 : 1);
@@ -210,6 +215,14 @@
         {@render iface("WiFi", status.wifi)}
         {#if status.ethernet}
           {@render iface("Ethernet", status.ethernet)}
+        {/if}
+        {#if status.wifi2}
+          {@render iface(
+            status.wifi2.product
+              ? `WiFi 2 (${status.wifi2.product})`
+              : "WiFi 2",
+            status.wifi2,
+          )}
         {/if}
         {#if status.tether}
           {@render iface(
@@ -395,6 +408,12 @@
         </Field>
       {/if}
     </Card>
+
+    <Wifi2Card
+      bind:wifi2
+      adapter={status?.wifi2 ?? null}
+      error={status?.wifi2_error ?? null}
+    />
 
     <ChannelSurvey bind:channel={wifi.ap.channel} {apOn} />
 

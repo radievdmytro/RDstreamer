@@ -4,6 +4,7 @@ const SECTIONS: Section[] = [
   "input",
   "device",
   "wifi",
+  "wifi2",
   "ethernet",
   "rtsp",
   "srt",

@@ -61,6 +61,10 @@ pub struct Status {
     /// A newer release, once a check has found one
     available: Option<Release>,
     installing: bool,
+    /// While a package downloads: how far it got
+    downloading: Option<Downloading>,
+    /// While installing: the last line the installer wrote
+    step: Option<String>,
     failure: Option<Failure>,
 }
 
@@ -86,7 +90,29 @@ struct Manifest {
 struct Download {
     url: String,
     signature: String,
+    /// Bytes, for showing progress; releases before 1.7 don't say
+    #[serde(default)]
+    size: Option<u64>,
 }
+
+/// A download under way, for the web interface to show
+#[derive(Serialize, Clone)]
+pub struct Downloading {
+    version: String,
+    bytes: u64,
+    total: Option<u64>,
+    seconds: f32,
+}
+
+struct Progress {
+    version: String,
+    total: Option<u64>,
+    started: std::time::Instant,
+}
+
+static PROGRESS: Mutex<Option<Progress>> = Mutex::new(None);
+/// One download at a time: the background check and a click share it
+static DOWNLOAD_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 #[derive(Serialize, Clone)]
 pub struct Release {
@@ -198,7 +224,12 @@ fn failed_attempt() -> Option<String> {
 
 /// Fetch the latest release and keep it for installing
 pub async fn download() -> Result<(), String> {
+    let _one = DOWNLOAD_LOCK.lock().await;
     let manifest = manifest().await?;
+    // The background check may have fetched it while this waited
+    if version_of(&file(STAGED)).await.as_deref() == Some(manifest.version.as_str()) {
+        return Ok(());
+    }
     let arch = architecture().await?;
     let package = manifest.packages.get(&arch).ok_or(format!(
         "Version {} has no package for {arch} devices",
@@ -206,12 +237,32 @@ pub async fn download() -> Result<(), String> {
     ))?;
     fs::create_dir_all(DIR).map_err(|e| format!("Couldn't create {DIR}: {e}"))?;
     let path = file("download.deb");
-    let fetched = fetch(&package.url, Some(&path)).await;
+    let _ = fs::remove_file(&path);
+    *PROGRESS.lock().unwrap() = Some(Progress {
+        version: manifest.version.clone(),
+        total: package.size,
+        started: std::time::Instant::now(),
+    });
+    // Once more after a stall: phone connections drop out for a moment
+    let mut fetched = fetch(&package.url, Some(&path)).await;
+    if fetched.is_err() {
+        let _ = fs::remove_file(&path);
+        fetched = fetch(&package.url, Some(&path)).await;
+    }
+    *PROGRESS.lock().unwrap() = None;
     let deb = fs::read(&path);
     let _ = fs::remove_file(&path);
     fetched?;
     let deb = deb.map_err(|e| format!("Couldn't read the download: {e}"))?;
     stage(&deb, &package.signature).await
+}
+
+/// The installer's last line of output, for showing what it's doing
+pub(crate) fn last_line(log: &str) -> Option<String> {
+    log.lines()
+        .map(str::trim)
+        .rfind(|l| !l.is_empty())
+        .map(|l| l.chars().take(160).collect())
 }
 
 async fn manifest() -> Result<Manifest, String> {
@@ -234,6 +285,8 @@ async fn fetch(url: &str, into: Option<&Path>) -> Result<String, String> {
     curl.args(["--fail", "--silent", "--show-error", "--location"])
         .args(["--proto", protocols, "--proto-redir", protocols])
         .args(["--connect-timeout", "15", "--max-time", "600"])
+        // Under 1 KB/s for 20 s: stalled, say so rather than hang
+        .args(["--speed-limit", "1024", "--speed-time", "20"])
         .args(["--max-filesize", &MAX_PACKAGE_BYTES.to_string()]);
     if let Some(path) = into {
         curl.arg("--output").arg(path);
@@ -285,6 +338,15 @@ pub async fn status() -> Status {
         previous: version_of(&file(PREVIOUS)).await,
         available: LATEST.lock().unwrap().clone().filter(|r| r.newer),
         installing,
+        downloading: PROGRESS.lock().unwrap().as_ref().map(|p| Downloading {
+            version: p.version.clone(),
+            bytes: fs::metadata(file("download.deb")).map_or(0, |m| m.len()),
+            total: p.total,
+            seconds: p.started.elapsed().as_secs_f32(),
+        }),
+        step: installing
+            .then(|| last_line(&fs::read_to_string(file(LOG)).unwrap_or_default()))
+            .flatten(),
         failure: (failed && !installing).then(|| Failure {
             version: fs::read_to_string(file(ATTEMPT)).unwrap_or_default(),
             reverted: result.trim() == REVERTED,

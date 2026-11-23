@@ -32,6 +32,32 @@ impl Default for WifiSettings {
     }
 }
 
+/// A second WiFi adapter (USB, wlan1) joining a network for the internet,
+/// while the built-in WiFi keeps broadcasting the access point
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+#[serde(default)]
+pub struct Wifi2Settings {
+    pub enabled: bool,
+    pub ssid: String,
+    /// Empty for open networks
+    pub password: String,
+    /// 5 GHz is where the goggles' video link runs: off unless asked for
+    pub allow_5ghz: bool,
+}
+
+impl Wifi2Settings {
+    pub fn validate(&self) -> Result<(), String> {
+        if !self.enabled {
+            return Ok(());
+        }
+        check_ssid(&self.ssid, "Second adapter's network name")?;
+        if !self.password.is_empty() {
+            check_psk(&self.password)?;
+        }
+        Ok(())
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 #[serde(default)]
 pub struct WifiClientSettings {
