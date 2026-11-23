@@ -141,6 +141,16 @@ export interface Settings {
       offset_x: number;
       offset_y: number;
     };
+    /** Shake taken out of the picture, from the picture itself */
+    stabilization: {
+      enabled: boolean;
+      /** 0-100: smoother, and zoomed in more */
+      strength: number;
+      /** Level out turning too */
+      roll: boolean;
+    };
+    /** The look in the streams and browsers too, encoded again */
+    processed_streams: boolean;
   };
   splash: {
     freeze_last_frame: boolean;

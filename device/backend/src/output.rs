@@ -6,6 +6,7 @@ pub mod look;
 pub mod ndi;
 pub mod omt;
 pub mod overlay;
+pub mod processed;
 pub mod recording;
 pub mod rtmp;
 pub mod rtsp;

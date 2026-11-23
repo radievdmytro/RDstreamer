@@ -32,7 +32,11 @@
 
   onMount(refresh);
 
-  const gpu = $derived(display.look.enabled || display.dewarp.enabled);
+  const gpu = $derived(
+    display.look.enabled ||
+      display.dewarp.enabled ||
+      display.stabilization.enabled,
+  );
   const isFile = $derived(display.look.lut.startsWith("file:"));
   const selectedFile = $derived(
     status?.files.find((f) => f.id === display.look.lut) ?? null,
@@ -111,7 +115,7 @@
 
 <Card
   title="Processing"
-  description="The LUT and dewarp are done on the GPU, for HDMI only. Streams, recordings and the browser view are not changed."
+  description="The LUT, dewarp and stabilisation are done on the GPU for HDMI; the streams and browsers get them too if you turn that on below. Recordings keep the goggles' own video."
 >
   {#if status?.error}
     <p class="bg-down/10 px-4 py-3 text-[12px] text-down">{status.error}</p>
@@ -131,6 +135,13 @@
         onchange={(v) => (display.look.quality = v)}
       />
     </div>
+  </Field>
+  <Field
+    label="Also in streams and browsers"
+    for="processed-streams"
+    help="RTMP, SRT, RTSP, UDP and the browsers get the same picture as HDMI, encoded again by the Pi: up to 1080p at 30 fps and about 0.1 s later. Off: they get the goggles' own video, 60 fps, untouched. If it can't run, they get the original."
+  >
+    <Switch id="processed-streams" bind:checked={display.processed_streams} />
   </Field>
 </Card>
 

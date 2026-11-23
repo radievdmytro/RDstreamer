@@ -6,6 +6,7 @@
   import OverlayCard from "@/components/display/OverlayCard.svelte";
   import LookCard from "@/components/display/LookCard.svelte";
   import DewarpCard from "@/components/display/DewarpCard.svelte";
+  import StabilizationCard from "@/components/display/StabilizationCard.svelte";
   import PreviewCard from "@/components/display/PreviewCard.svelte";
   let {
     display = $bindable(),
@@ -32,5 +33,6 @@
     <PreviewCard {display} />
     <LookCard bind:display />
     <DewarpCard bind:display />
+    <StabilizationCard bind:display />
   {/if}
 </div>

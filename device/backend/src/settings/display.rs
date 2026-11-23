@@ -15,6 +15,41 @@ pub struct DisplaySettings {
     pub look: LookSettings,
     /// Lens correction on the HDMI picture
     pub dewarp: DewarpSettings,
+    /// Shake taken out of the picture, from the picture itself
+    pub stabilization: StabilizationSettings,
+    /// LUT, lens correction and stabilisation in the streams and browsers
+    /// too, encoded again at up to 1080p30; otherwise they get the goggles'
+    /// own video
+    pub processed_streams: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(default)]
+pub struct StabilizationSettings {
+    pub enabled: bool,
+    /// 0-100: how smooth, and how much the picture is zoomed to make room
+    pub strength: u8,
+    /// Level out turning too, not just shifting
+    pub roll: bool,
+}
+
+impl StabilizationSettings {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.strength > 100 {
+            return Err("Stabilisation strength is 0 to 100".into());
+        }
+        Ok(())
+    }
+}
+
+impl Default for StabilizationSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            strength: 60,
+            roll: true,
+        }
+    }
 }
 
 /// Straightens a fisheye picture on the GPU, for HDMI
@@ -124,6 +159,8 @@ impl Default for DisplaySettings {
             mirror: false,
             look: LookSettings::default(),
             dewarp: DewarpSettings::default(),
+            stabilization: StabilizationSettings::default(),
+            processed_streams: false,
         }
     }
 }

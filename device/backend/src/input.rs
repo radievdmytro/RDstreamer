@@ -78,6 +78,8 @@ pub struct Fanout {
     pub recorder: Arc<Recorder>,
     pub web_tx: mpsc::UnboundedSender<Vec<u8>>,
     pub metrics: Arc<crate::system::metrics::Metrics>,
+    /// The look encoded again for the network, when it's on and producing
+    pub processed: Arc<crate::output::processed::Processed>,
 }
 
 impl Fanout {
@@ -89,12 +91,10 @@ impl Fanout {
         self.splash.video(chunk, || {
             self.metrics.video(chunk);
             self.decoder.push(chunk);
-            self.rtsp.push(chunk);
-            self.srt.push(chunk);
-            self.rtmp.push(chunk);
-            self.udp.push(chunk);
             self.recorder.push(chunk);
-            let _ = self.web_tx.send(chunk.to_vec());
+            if !self.processed.active() {
+                self.network(chunk);
+            }
         });
         true
     }
@@ -104,11 +104,18 @@ impl Fanout {
         let this = Arc::clone(self);
         self.splash.start(move |au| {
             this.decoder.push_au(au);
-            this.rtsp.push(au);
-            this.srt.push(au);
-            this.rtmp.push(au);
-            this.udp.push(au);
-            let _ = this.web_tx.send(au.to_vec());
+            if !this.processed.active() {
+                this.network(au);
+            }
         });
+    }
+
+    /// The streams and browsers
+    pub fn network(&self, au: &[u8]) {
+        self.rtsp.push(au);
+        self.srt.push(au);
+        self.rtmp.push(au);
+        self.udp.push(au);
+        let _ = self.web_tx.send(au.to_vec());
     }
 }

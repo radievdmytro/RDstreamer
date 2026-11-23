@@ -308,7 +308,7 @@ fn grades_and_dewarps_on_the_gpu() {
     };
     let flat = DewarpSettings::default();
 
-    select(&look("mono", 0), &flat);
+    select(&look("mono", 0), &flat, &Default::default());
     let Some(plain) = through_gpu(&solid, (w, h)) else {
         eprintln!("GL wouldn't start here; skipped");
         return;
@@ -319,7 +319,7 @@ fn grades_and_dewarps_on_the_gpu() {
         "{c:?}"
     );
 
-    select(&look("mono", 100), &flat);
+    select(&look("mono", 100), &flat, &Default::default());
     let grey = through_gpu(&solid, (w, h)).expect("graded");
     let c = px(&grey, 32, 18);
     assert!((c[0] as i32 - c[1] as i32).abs() <= 2 && (c[1] as i32 - c[2] as i32).abs() <= 2);
@@ -337,7 +337,7 @@ fn grades_and_dewarps_on_the_gpu() {
         offset_x: 5,
         offset_y: 0,
     };
-    select(&look("mono", 0), &dewarp);
+    select(&look("mono", 0), &dewarp, &Default::default());
     let out = through_gpu(&ramp, (w, h)).expect("dewarped");
     let d = Dewarp::from(&dewarp);
     for x in [4usize, 16, 32, 48, 60] {

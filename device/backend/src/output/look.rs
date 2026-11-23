@@ -9,6 +9,7 @@
 //! rebuilds the HDMI pipeline (`hdmi.rs`).
 
 mod gl;
+pub mod stab;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -387,6 +388,7 @@ pub(crate) struct Current {
     /// 0 with the look off
     pub strength: f32,
     pub dewarp: Dewarp,
+    pub stabilise: bool,
     /// Which LUT that is, to tell a real change from the same one again
     key: Option<(String, Option<std::time::SystemTime>)>,
 }
@@ -406,6 +408,7 @@ pub(crate) static CURRENT: LazyLock<Mutex<Current>> = LazyLock::new(|| {
         version: 0,
         strength: 0.0,
         dewarp: Dewarp::OFF,
+        stabilise: false,
         key: None,
     })
 });
@@ -454,7 +457,15 @@ fn file_path(id: &str) -> Option<PathBuf> {
 
 /// Makes the settings' LUT, strength and dewarp the ones in use. The same LUT
 /// again keeps its texture
-pub fn select(look: &LookSettings, dewarp: &DewarpSettings) {
+pub fn select(
+    look: &LookSettings,
+    dewarp: &DewarpSettings,
+    stabilization: &crate::settings::StabilizationSettings,
+) {
+    stab::tune(stab::Tuning {
+        strength: stabilization.strength,
+        roll: stabilization.roll,
+    });
     let path = file_path(&look.lut);
     let stamp = path
         .as_ref()
@@ -467,6 +478,7 @@ pub fn select(look: &LookSettings, dewarp: &DewarpSettings) {
         0.0
     };
     current.dewarp = Dewarp::from(dewarp);
+    current.stabilise = stabilization.enabled;
     if current.key.as_ref() == Some(&key) {
         return;
     }

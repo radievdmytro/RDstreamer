@@ -89,6 +89,7 @@ pub(super) fn validate(s: &Settings) -> Result<(), String> {
     s.overlay.validate()?;
     s.display.look.validate()?;
     s.display.dewarp.validate()?;
+    s.display.stabilization.validate()?;
     s.wifi.validate()?;
     s.wifi2.validate()?;
     s.ethernet.validate()?;

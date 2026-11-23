@@ -69,6 +69,8 @@ struct State {
     /// The look failed on this device: shown without it until its settings
     /// change
     look_failed: bool,
+    /// The stabilisation's analysis, while HDMI uses it
+    steady: Option<crate::output::look::stab::Hold>,
     /// When the output last had to be started again after breaking
     recovered_at: Option<Instant>,
 }
@@ -77,6 +79,8 @@ pub struct GstPlayer {
     overlay: Arc<Overlay>,
     decoder: Arc<SharedDecoder>,
     state: Mutex<State>,
+    /// The same look for the streams, when asked for
+    processed: Arc<crate::output::processed::Processed>,
 }
 
 impl GstPlayer {
@@ -88,6 +92,7 @@ impl GstPlayer {
         gst::init()?;
         let this = Arc::new(Self {
             overlay,
+            processed: crate::output::processed::Processed::new(Arc::clone(&decoder)),
             decoder,
             state: Mutex::new(State {
                 wanted: cfg.clone(),
@@ -98,6 +103,7 @@ impl GstPlayer {
                 display: None,
                 running: None,
                 look_failed: false,
+                steady: None,
                 recovered_at: None,
             }),
         });
@@ -150,7 +156,14 @@ impl GstPlayer {
     /// Everything but a mode change is instant; a mode change also rebuilds
     /// the pipeline, so the picture returns with the next keyframe. With no
     /// screen plugged in, the output starts once one is
+    pub fn processed(&self) -> Arc<crate::output::processed::Processed> {
+        Arc::clone(&self.processed)
+    }
+
     pub fn apply(&self, cfg: &DisplaySettings) -> Result<(), String> {
+        // The look's settings serve the streams too, HDMI on or off
+        crate::output::look::select(&cfg.look, &cfg.dewarp, &cfg.stabilization);
+        self.processed.apply(cfg);
         let mut st = self.state.lock().unwrap();
         st.wanted = cfg.clone();
         self.show(&mut st)
@@ -251,14 +264,28 @@ impl GstPlayer {
 
         // Another LUT, strength or dewarp shows on the next picture; turning
         // the GPU stage on or off, or its quality, needs another pipeline
-        crate::output::look::select(&cfg.look, &cfg.dewarp);
-        if st.cfg.look != cfg.look || st.cfg.dewarp != cfg.dewarp {
+        crate::output::look::select(&cfg.look, &cfg.dewarp, &cfg.stabilization);
+        if st.cfg.look != cfg.look
+            || st.cfg.dewarp != cfg.dewarp
+            || st.cfg.stabilization != cfg.stabilization
+        {
             st.look_failed = false;
         }
-        // The GPU stage is there for either the look or dewarp
-        let look = (cfg.look.enabled || cfg.dewarp.enabled)
+        // The GPU stage is there for the look, dewarp or stabilisation
+        let look = (cfg.look.enabled || cfg.dewarp.enabled || cfg.stabilization.enabled)
             && !st.look_failed
             && crate::output::look::register().is_ok();
+        // Stabilisation needs the pictures analysed, while it's on
+        let steady = look && cfg.stabilization.enabled;
+        if steady != st.steady.is_some() {
+            st.steady = if steady {
+                crate::output::look::stab::start(&self.decoder)
+                    .map_err(|e| eprintln!("[hdmi] stabilisation: {e}"))
+                    .ok()
+            } else {
+                None
+            };
+        }
         let unchanged = st.running.is_some()
             && st.running.as_ref().is_some_and(|r| r.look == look)
             && st.cfg.look.quality == cfg.look.quality

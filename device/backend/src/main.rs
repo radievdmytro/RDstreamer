@@ -133,7 +133,18 @@ fn run() -> anyhow::Result<()> {
         recorder: Arc::clone(&recorder),
         web_tx,
         metrics: Arc::clone(&metrics),
+        processed: player.processed(),
     });
+    // The look encoded again goes where the goggles' video would
+    {
+        let out = Arc::downgrade(&fanout);
+        player.processed().set_output(move |au| {
+            if let Some(f) = out.upgrade() {
+                f.network(au);
+            }
+        });
+        player.processed().apply(&cfg.display);
+    }
     fanout.start_splash();
     let uvc = UvcSource::start(
         Arc::clone(&input),

@@ -53,6 +53,19 @@ uniform vec2 offset;
 uniform float aspect;
 // 1 when the picture comes in video levels (black at 16, white at 235)
 uniform float levels;
+// Stabilisation: sample at R(sangle)·p/szoom + soffset (look::stab)
+uniform float stab;
+uniform vec2 soffset;
+uniform float sangle;
+uniform float szoom;
+
+vec2 steady(vec2 uv) {
+    vec2 p = vec2((uv.x * 2.0 - 1.0) * aspect, uv.y * 2.0 - 1.0) / szoom;
+    float c = cos(sangle);
+    float s = sin(sangle);
+    p = vec2(p.x * c - p.y * s, p.x * s + p.y * c) + soffset;
+    return vec2(p.x / aspect, p.y) * 0.5 + 0.5;
+}
 
 // Where this output point samples the picture: look::Dewarp::source
 vec2 warp(vec2 uv) {
@@ -77,7 +90,8 @@ vec3 lookup(vec3 c) {
 }
 
 void main() {
-    vec2 uv = dewarp > 0.5 ? warp(v_texcoord) : v_texcoord;
+    vec2 uv = stab > 0.5 ? steady(v_texcoord) : v_texcoord;
+    uv = dewarp > 0.5 ? warp(uv) : uv;
     // What the correction pulls in from beyond the picture is black
     if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
         gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
@@ -146,6 +160,8 @@ struct GlState {
     texture: u32,
     version: u64,
     size: f32,
+    /// The picture being drawn's timestamp
+    pts: Option<u64>,
 }
 
 // SAFETY: only ever touched on GStreamer's GL thread, behind the mutex
@@ -188,6 +204,12 @@ mod imp {
             gstreamer_base::subclass::BaseTransformMode::NeverInPlace;
         const PASSTHROUGH_ON_SAME_CAPS: bool = false;
         const TRANSFORM_IP_ON_PASSTHROUGH: bool = false;
+
+        // Which picture is coming: its stabilisation is looked up by time
+        fn before_transform(&self, inbuf: &gst::BufferRef) {
+            self.state.lock().unwrap().pts = inbuf.pts().map(|t| t.nseconds());
+            self.parent_before_transform(inbuf);
+        }
     }
 
     impl GLBaseFilterImpl for RdLook {
@@ -252,13 +274,14 @@ mod imp {
             input: &gst_gl::GLMemory,
             output: &gst_gl::GLMemory,
         ) -> Result<(), gst::LoggableError> {
-            let (atlas, version, strength, dewarp) = {
+            let (atlas, version, strength, dewarp, stabilise) = {
                 let current = crate::output::look::CURRENT.lock().unwrap();
                 (
                     current.atlas.clone(),
                     current.version,
                     current.strength,
                     current.dewarp,
+                    current.stabilise,
                 )
             };
             let mut st = self.state.lock().unwrap();
@@ -327,6 +350,15 @@ mod imp {
             let levels =
                 crate::output::look::VIDEO_LEVELS.load(std::sync::atomic::Ordering::Relaxed);
             shader.set_uniform_1f("levels", if levels { 1.0 } else { 0.0 });
+            let steady = if stabilise && !splash {
+                crate::output::look::stab::correction_for(st.pts)
+            } else {
+                crate::output::look::stab::Correction::NONE
+            };
+            shader.set_uniform_1f("stab", if stabilise && !splash { 1.0 } else { 0.0 });
+            shader.set_uniform_2f("soffset", steady.offset[0], steady.offset[1]);
+            shader.set_uniform_1f("sangle", steady.angle);
+            shader.set_uniform_1f("szoom", steady.zoom);
             self.obj()
                 .render_to_target_with_shader(input, output, shader);
             // The picture goes to the screen as a dmabuf with nothing to say
