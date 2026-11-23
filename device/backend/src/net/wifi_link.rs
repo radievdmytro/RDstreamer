@@ -114,25 +114,116 @@ pub async fn link() -> Link {
 }
 
 pub async fn survey() -> Result<Survey, String> {
-    let current = parse_info(&run("iw", &["dev", IFACE, "info"]).await.unwrap_or_default()).channel;
-    // ap-force: scan while broadcasting too. The radio answers "busy" while
-    // it finishes something else; a moment later it doesn't
+    let info = parse_info(&run("iw", &["dev", IFACE, "info"]).await.unwrap_or_default());
+    let current = info.channel;
+    let out = if info.role == Role::Ap {
+        // The Pi's chip refuses to scan on the interface that broadcasts
+        // (-52 or -95, even with ap-force), but it runs a second, ordinary
+        // interface beside the access point, and that one may
+        match scan(IFACE, true).await {
+            Ok(out) => Ok(out),
+            Err(first) => match scan_beside().await {
+                Ok(out) => Ok(out),
+                Err(e) => {
+                    eprintln!("[wifi] scan: {first}; beside the access point: {e}");
+                    Err(e)
+                }
+            },
+        }
+    } else {
+        scan(IFACE, false).await
+    };
+    out.map(|out| summarise(parse_scan(&out), current))
+        .map_err(|e| scan_error(&e))
+}
+
+/// One scan; the radio answers "busy" while it finishes something else, and
+/// a moment later it doesn't
+async fn scan(iface: &str, ap_force: bool) -> Result<String, String> {
+    let mut args = vec!["dev", iface, "scan"];
+    if ap_force {
+        args.push("ap-force");
+    }
     let mut last = String::new();
     for attempt in 0..4 {
         if attempt > 0 {
             tokio::time::sleep(Duration::from_millis(1500)).await;
         }
-        match run("iw", &["dev", IFACE, "scan", "ap-force"]).await {
-            Ok(out) => return Ok(summarise(parse_scan(&out), current)),
+        match run("iw", &args).await {
+            Ok(out) => return Ok(out),
             Err(e) if e.contains("busy") || e.contains("-16") => last = e,
-            Err(e) => return Err(scan_error(&e)),
+            Err(e) => return Err(e),
         }
     }
-    Err(scan_error(&last))
+    Err(last)
+}
+
+/// A temporary second interface that only listens, removed afterwards
+async fn scan_beside() -> Result<String, String> {
+    const SCAN_IFACE: &str = "rdscan0";
+    let _ = run("iw", &["dev", SCAN_IFACE, "del"]).await;
+    run(
+        "iw",
+        &[
+            "dev",
+            IFACE,
+            "interface",
+            "add",
+            SCAN_IFACE,
+            "type",
+            "managed",
+        ],
+    )
+    .await?;
+    let result = async {
+        // NetworkManager would try to use it
+        let _ = run("nmcli", &["dev", "set", SCAN_IFACE, "managed", "no"]).await;
+        // Two interfaces with one address won't both come up
+        if let Some(mac) = std::fs::read_to_string(format!("/sys/class/net/{IFACE}/address"))
+            .ok()
+            .and_then(|m| local_address(m.trim()))
+        {
+            let _ = run("ip", &["link", "set", "dev", SCAN_IFACE, "address", &mac]).await;
+        }
+        run("ip", &["link", "set", "dev", SCAN_IFACE, "up"]).await?;
+        scan(SCAN_IFACE, false).await
+    }
+    .await;
+    let _ = run("ip", &["link", "set", "dev", SCAN_IFACE, "down"]).await;
+    let _ = run("iw", &["dev", SCAN_IFACE, "del"]).await;
+    result
+}
+
+/// The same address marked locally administered, so it differs from the
+/// radio's own
+pub(crate) fn local_address(mac: &str) -> Option<String> {
+    let mut octets: Vec<u8> = mac
+        .split(':')
+        .map(|o| u8::from_str_radix(o, 16).ok())
+        .collect::<Option<_>>()?;
+    if octets.len() != 6 {
+        return None;
+    }
+    octets[0] = (octets[0] | 0x02) & !0x01;
+    if format!("{:02x}", octets[0]) == mac[..2].to_lowercase() {
+        // Already local: change the last octet instead
+        octets[5] ^= 0x01;
+    }
+    Some(
+        octets
+            .iter()
+            .map(|o| format!("{o:02x}"))
+            .collect::<Vec<_>>()
+            .join(":"),
+    )
 }
 
 fn scan_error(e: &str) -> String {
-    if e.contains("Operation not supported") || e.contains("-95") {
+    if e.contains("Operation not supported")
+        || e.contains("-95")
+        || e.contains("Invalid exchange")
+        || e.contains("-52")
+    {
         "The WiFi chip can't scan while it broadcasts the access point. \
          Join a network (or turn the access point off) for a moment to scan."
             .into()

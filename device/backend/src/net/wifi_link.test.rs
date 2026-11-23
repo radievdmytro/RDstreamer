@@ -149,3 +149,22 @@ fn explains_scan_errors() {
     assert!(scan_error("command failed: Operation not supported (-95)").contains("can't scan"));
     assert!(scan_error("command failed: Device or resource busy (-16)").contains("busy"));
 }
+
+#[test]
+fn a_second_interface_gets_its_own_address() {
+    assert_eq!(
+        local_address("dc:a6:32:00:00:01").as_deref(),
+        Some("de:a6:32:00:00:01")
+    );
+    // Already locally administered: told apart by the last octet
+    assert_eq!(
+        local_address("de:a6:32:00:00:01").as_deref(),
+        Some("de:a6:32:00:00:00")
+    );
+    assert_eq!(local_address("nonsense"), None);
+}
+
+#[test]
+fn the_chip_refusing_to_scan_is_explained() {
+    assert!(scan_error("command failed: Invalid exchange (-52)").contains("can't scan"));
+}
