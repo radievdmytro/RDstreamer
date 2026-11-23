@@ -142,7 +142,15 @@
   const light = $derived(
     quality === "light" || (quality === "auto" && lagging),
   );
-  const query = $derived(light ? "?quality=light" : "");
+  // The image preview grades the picture itself: it asks for the goggles'
+  // own, not the processed one browsers may get
+  const query = $derived(
+    graded
+      ? `?source=original${light ? "&quality=light" : ""}`
+      : light
+        ? "?quality=light"
+        : "",
+  );
   /** Seconds in a row the picture has been struggling */
   let strained = 0;
   let lossNow: number | null = null;

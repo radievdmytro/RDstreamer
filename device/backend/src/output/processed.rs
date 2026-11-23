@@ -284,6 +284,12 @@ impl Processed {
     ) -> Result<Encoding, String> {
         let generation = self.generation.fetch_add(1, Ordering::Relaxed) + 1;
         let download = WAYS[way].1;
+        // The first two ways convert through the image processor
+        let name = if way < 2 {
+            format!("{}0", crate::output::look::TO_ISP)
+        } else {
+            "rdlook_cpu".to_string()
+        };
         // The CPU can't convert 1080p in time: the image processor makes it
         // 720p on the way in
         let size = if way == 2 {
@@ -304,7 +310,7 @@ impl Processed {
             "appsrc name=src is-live=true format=time max-buffers=2 leaky-type=downstream ! \
              v4l2convert output-io-mode=dmabuf-import {own} ! video/x-raw,format={format}{size} ! \
              queue max-size-buffers=2 max-size-bytes=0 max-size-time=0 leaky=downstream ! \
-             glupload ! {delay}rdlook ! {download} ! \
+             glupload ! {delay}rdlook name={name} ! {download} ! \
              v4l2h264enc extra-controls=\"controls,video_bitrate={BITRATE},h264_i_frame_period={KEYFRAME_EVERY},repeat_sequence_header=1\" ! \
              video/x-h264,level=(string)4,profile=(string)high ! \
              h264parse config-interval=-1 ! video/x-h264,stream-format=byte-stream,alignment=au ! \

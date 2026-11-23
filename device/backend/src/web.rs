@@ -39,6 +39,10 @@ struct AppState {
 struct Want {
     #[serde(default)]
     quality: Option<String>,
+    /// "original": the goggles' own picture even when browsers get the
+    /// processed one (the image preview grades it itself)
+    #[serde(default)]
+    source: Option<String>,
 }
 
 impl AppState {
@@ -48,7 +52,10 @@ impl AppState {
         // The light copy is made from the goggles' picture: viewers set to
         // get the processed one keep it, at its full size
         let processed = self.services.player.processed().taking().web;
-        if want.quality.as_deref() == Some("light") && !processed {
+        // The original while browsers get the processed picture: the light
+        // copy is the one made from it
+        let original = processed && want.source.as_deref() == Some("original");
+        if (want.quality.as_deref() == Some("light") && !processed) || original {
             match self.light.watch() {
                 Ok((rx, watching)) => return (rx, Some(watching)),
                 Err(e) => eprintln!("[light] {e}; sending the original"),

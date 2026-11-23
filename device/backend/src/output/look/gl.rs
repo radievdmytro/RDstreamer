@@ -53,6 +53,9 @@ uniform vec2 offset;
 uniform float aspect;
 // 1 when the picture comes in video levels (black at 16, white at 235)
 uniform float levels;
+// 1 when the picture goes on to the image processor to be encoded, which
+// takes RGB in video levels too
+uniform float vout;
 // Stabilisation: sample at R(sangle)·p/szoom + soffset (look::stab)
 uniform float stab;
 uniform vec2 soffset;
@@ -105,7 +108,11 @@ void main() {
         c.rgb = clamp((c.rgb - 16.0 / 255.0) * (255.0 / 219.0), 0.0, 1.0);
     }
     vec3 graded = lookup(clamp(c.rgb, 0.0, 1.0));
-    gl_FragColor = vec4(mix(c.rgb, graded, strength), 1.0);
+    vec3 o = mix(c.rgb, graded, strength);
+    if (vout > 0.5) {
+        o = 16.0 / 255.0 + o * (219.0 / 255.0);
+    }
+    gl_FragColor = vec4(o, 1.0);
 }
 "#;
 
@@ -353,6 +360,9 @@ mod imp {
             let levels =
                 crate::output::look::VIDEO_LEVELS.load(std::sync::atomic::Ordering::Relaxed);
             shader.set_uniform_1f("levels", if levels { 1.0 } else { 0.0 });
+            // Named so in the pipelines that hand it to the image processor
+            let vout = self.obj().name().starts_with(crate::output::look::TO_ISP);
+            shader.set_uniform_1f("vout", if vout { 1.0 } else { 0.0 });
             let steady = if stabilise && !splash {
                 crate::output::look::stab::correction_for(st.pts)
             } else {

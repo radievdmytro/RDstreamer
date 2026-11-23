@@ -467,6 +467,10 @@ pub fn delay_of(cfg: &crate::settings::DisplaySettings) -> u16 {
     }
 }
 
+/// The name prefix of a GPU stage whose picture the image processor
+/// converts for the encoder: it gets video levels, as the processor gives
+pub const TO_ISP: &str = "rdlook_isp";
+
 /// For the image processor while the delay holds pictures back: in its own
 /// memory, which the GPU copies from, so the second or so held is in GPU
 /// memory and the processor's few buffers are free again at once
