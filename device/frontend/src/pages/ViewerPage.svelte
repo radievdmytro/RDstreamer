@@ -138,53 +138,52 @@
        where to tap; Android can be asked to open its browser -->
   {#if signIn || android}
     <div
-      class="mx-4 mb-3 flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2.5 sm:mx-6 {signIn
+      class="mx-4 mb-3 flex flex-col items-center gap-3 rounded-xl border px-4 py-4 text-center sm:mx-6 {signIn
         ? 'border-primary/50 bg-primary/10'
         : 'border-line bg-surface/60'}"
     >
       <span
-        class="w-full min-w-0 text-[12px] leading-snug sm:w-auto sm:flex-1 {signIn
-          ? 'text-fg'
-          : 'text-muted'}"
+        class="text-[13px] leading-snug {signIn ? 'text-fg' : 'text-muted'}"
       >
-        {#if signIn && !android}
-          This window can't open Safari (Apple doesn't allow it). For full
-          screen: <b>copy the address</b>, tap <b>Done</b> or ✓ at the top, then paste
-          it into Safari.
+        {#if signIn && !apple && !android}
+          For full screen, open this address in your browser:
         {:else if signIn}
-          For full screen and the smoothest picture, open this in your browser.
+          This window can't open the browser. Copy the address, close this
+          window ({apple ? "Done or ✓ at the top" : "✕ or back"}), and paste it
+          into {apple ? "Safari" : "Chrome"}:
         {:else}
-          Watching in a small window? Open it in the browser:
+          Watching in a small window? Open this address in your browser:
         {/if}
       </span>
       <input
         id="viewer-address"
         readonly
         value={address}
-        class="w-36 rounded-md border border-line bg-surface-2 px-2 py-1 font-mono text-[12px] text-fg"
+        aria-label="Address to open in the browser"
+        class="w-full max-w-md rounded-lg border border-line bg-surface-2 px-3 py-2.5 text-center font-mono text-[20px] font-semibold text-fg sm:text-[26px]"
         onfocus={(e) => (e.currentTarget as HTMLInputElement).select()}
       />
-      <button
-        type="button"
-        class={signIn && !android ? btn.primary : btn.plain}
-        onclick={copy}
-      >
-        <Copy class="h-4 w-4" aria-hidden="true" />
-        {copied ? "Copied" : "Copy address"}
-      </button>
-      <!-- Android opens its browser by intent. A computer's sign-in window
-           may let a new-window link through; if not, the copy is there -->
-      {#if android || !apple}
-        <a
-          href={android ? openHref : address}
-          target="_blank"
-          rel="noopener"
-          class={signIn && android ? btn.primary : btn.plain}
+      <div class="flex flex-wrap items-center justify-center gap-2">
+        <button
+          type="button"
+          class="{btn.primary} min-w-44 justify-center py-2.5 text-[15px]"
+          onclick={copy}
         >
-          <ExternalLink class="h-4 w-4" aria-hidden="true" />
-          Open in browser
-        </a>
-      {/if}
+          <Copy class="h-4 w-4" aria-hidden="true" />
+          {copied ? "Copied — now paste it in the browser" : "Copy address"}
+        </button>
+        {#if android || !apple}
+          <a
+            href={android ? openHref : address}
+            target="_blank"
+            rel="noopener"
+            class={signIn && android ? btn.primary : btn.plain}
+          >
+            <ExternalLink class="h-4 w-4" aria-hidden="true" />
+            Open in browser
+          </a>
+        {/if}
+      </div>
     </div>
   {/if}
 
