@@ -52,17 +52,12 @@
   ];
 
   // Out of a phone's WiFi sign-in window (which can't do everything) into
-  // its real browser. Each system has its own way: Safari's URL scheme on
-  // iPhone and iPad, an intent on Android, a new tab elsewhere
+  // its real browser: an intent on Android; on Apple's, only by hand
   const address = `http://${location.host}/`;
   const ua = navigator.userAgent;
   const apple = /iPhone|iPad|iPod/.test(ua);
   const android = /Android/.test(ua);
-  const openHref = apple
-    ? `x-safari-http://${location.host}/`
-    : android
-      ? `intent://${location.host}/#Intent;scheme=http;end`
-      : address;
+  const openHref = `intent://${location.host}/#Intent;scheme=http;end`;
   // The sign-in windows say little about themselves: no "Safari" in the
   // name on iPhone, "wv" on Android, CaptiveNetworkSupport on a Mac
   const signIn =
@@ -127,22 +122,29 @@
     </div>
   </header>
 
-  <!-- Out of the sign-in window into the browser: on phones always, louder
-       in a sign-in window -->
-  {#if signIn || apple || android}
+  <!-- Out of the sign-in window into the browser. Apple doesn't let that
+       window open Safari at all, so there it's the address to copy and
+       where to tap; Android can be asked to open its browser -->
+  {#if signIn || android}
     <div
-      class="mx-4 mb-3 flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2 sm:mx-6 {signIn
+      class="mx-4 mb-3 flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2.5 sm:mx-6 {signIn
         ? 'border-primary/50 bg-primary/10'
         : 'border-line bg-surface/60'}"
     >
       <span
-        class="w-full min-w-0 text-[12px] sm:w-auto sm:flex-1 {signIn
+        class="w-full min-w-0 text-[12px] leading-snug sm:w-auto sm:flex-1 {signIn
           ? 'text-fg'
           : 'text-muted'}"
       >
-        {signIn
-          ? "For full screen and the smoothest picture, open this in your browser."
-          : "Watching in a small window? Open it in the browser:"}
+        {#if signIn && !android}
+          This window can't open Safari (Apple doesn't allow it). For full
+          screen: <b>copy the address</b>, tap <b>Done</b> or ✓ at the top, then paste
+          it into Safari.
+        {:else if signIn}
+          For full screen and the smoothest picture, open this in your browser.
+        {:else}
+          Watching in a small window? Open it in the browser:
+        {/if}
       </span>
       <input
         id="viewer-address"
@@ -151,19 +153,27 @@
         class="w-36 rounded-md border border-line bg-surface-2 px-2 py-1 font-mono text-[12px] text-fg"
         onfocus={(e) => (e.currentTarget as HTMLInputElement).select()}
       />
-      <button type="button" class={btn.plain} onclick={copy}>
-        <Copy class="h-4 w-4" aria-hidden="true" />
-        {copied ? "Copied" : "Copy"}
-      </button>
-      <a
-        href={openHref}
-        target="_blank"
-        rel="noopener"
-        class={signIn ? btn.primary : btn.plain}
+      <button
+        type="button"
+        class={signIn && !android ? btn.primary : btn.plain}
+        onclick={copy}
       >
-        <ExternalLink class="h-4 w-4" aria-hidden="true" />
-        Open in {apple ? "Safari" : "browser"}
-      </a>
+        <Copy class="h-4 w-4" aria-hidden="true" />
+        {copied ? "Copied" : "Copy address"}
+      </button>
+      <!-- Android opens its browser by intent. A computer's sign-in window
+           may let a new-window link through; if not, the copy is there -->
+      {#if android || !apple}
+        <a
+          href={android ? openHref : address}
+          target="_blank"
+          rel="noopener"
+          class={signIn && android ? btn.primary : btn.plain}
+        >
+          <ExternalLink class="h-4 w-4" aria-hidden="true" />
+          Open in browser
+        </a>
+      {/if}
     </div>
   {/if}
 
