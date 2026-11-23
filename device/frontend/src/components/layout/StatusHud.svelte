@@ -163,9 +163,8 @@
   const uplink = $derived.by(() => {
     const dev = link?.uplink;
     if (!dev || dev.startsWith("wlan")) return null;
-    if (dev.startsWith("eth") || dev.startsWith("end"))
-      return { icon: Cable, label: "Ethernet" };
-    return { icon: Smartphone, label: "Phone" };
+    if (link.uplink_phone) return { icon: Smartphone, label: "Phone" };
+    return { icon: Cable, label: "Ethernet" };
   });
 
   const rate = (k: number) =>

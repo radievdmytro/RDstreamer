@@ -61,6 +61,8 @@ export interface WifiLink {
   }[];
   /** Where streams to the internet leave: wlan0, eth0, usb0... */
   uplink: string | null;
+  /** That's a phone over USB (an iPhone is eth1) */
+  uplink_phone: boolean;
 }
 
 /** 2.4 GHz networks around and how busy each channel is */

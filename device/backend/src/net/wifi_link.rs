@@ -42,6 +42,9 @@ pub struct Link {
     pub stations: Vec<Station>,
     /// Where streams to the internet leave: wlan0, eth0, usb0...
     pub uplink: Option<String>,
+    /// That's a phone sharing its connection over USB (an iPhone shows up
+    /// as eth1, so the name alone doesn't tell)
+    pub uplink_phone: bool,
 }
 
 #[derive(Debug, Default, Serialize, PartialEq)]
@@ -110,6 +113,9 @@ pub async fn link() -> Link {
         .await
         .ok()
         .and_then(|out| parse_default_route(&out));
+    if let Some(dev) = &link.uplink {
+        link.uplink_phone = super::network::is_tether(dev).await;
+    }
     link
 }
 

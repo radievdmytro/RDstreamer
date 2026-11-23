@@ -712,7 +712,7 @@ async fn ethernet_devices() -> Vec<String> {
         .collect()
 }
 
-async fn is_tether(dev: &str) -> bool {
+pub(crate) async fn is_tether(dev: &str) -> bool {
     tokio::fs::read_link(format!("/sys/class/net/{dev}/device/driver"))
         .await
         .ok()
