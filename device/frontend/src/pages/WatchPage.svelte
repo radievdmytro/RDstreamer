@@ -7,6 +7,7 @@
   import Player from "@/components/watch/Player.svelte";
   import CameraPanel from "@/components/watch/CameraPanel.svelte";
   import RecorderWidget from "@/components/watch/RecorderWidget.svelte";
+  import ProcessingWidget from "@/components/watch/ProcessingWidget.svelte";
   import AircraftRecorderWidget from "@/components/watch/AircraftRecorderWidget.svelte";
   import StatsWidget from "@/components/watch/StatsWidget.svelte";
   import PageHeader from "@/components/layout/PageHeader.svelte";
@@ -121,6 +122,7 @@
     >
       {#if auth.admin}
         <RecorderWidget />
+        <ProcessingWidget />
       {/if}
       {#if aircraftRecorder}
         <AircraftRecorderWidget />

@@ -82,6 +82,11 @@
   {#snippet aside()}
     <Switch bind:checked={rtmp.enabled} label="RTMP" />
   {/snippet}
+  <ProcessedField
+    id="rtmp-processed"
+    bind:checked={rtmp.processed}
+    disabled={!rtmp.enabled}
+  />
 
   {#if summary}
     <p class="px-4 py-3 text-[12px] {summary.tone}">{summary.text}</p>
@@ -133,9 +138,4 @@
       disabled={!rtmp.enabled}
     />
   </Field>
-  <ProcessedField
-    id="rtmp-processed"
-    bind:checked={rtmp.processed}
-    disabled={!rtmp.enabled}
-  />
 </Card>

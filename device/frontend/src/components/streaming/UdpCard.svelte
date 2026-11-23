@@ -60,6 +60,11 @@
   {#snippet aside()}
     <Switch bind:checked={udp.enabled} label="UDP" />
   {/snippet}
+  <ProcessedField
+    id="udp-processed"
+    bind:checked={udp.processed}
+    disabled={!udp.enabled}
+  />
 
   {#if summary}
     <p class="px-4 py-3 text-[12px] {summary.tone}">{summary.text}</p>
@@ -90,9 +95,4 @@
       disabled={!udp.enabled}
     />
   </Field>
-  <ProcessedField
-    id="udp-processed"
-    bind:checked={udp.processed}
-    disabled={!udp.enabled}
-  />
 </Card>

@@ -80,6 +80,11 @@
   {#snippet aside()}
     <Switch bind:checked={srt.enabled} label="SRT" />
   {/snippet}
+  <ProcessedField
+    id="srt-processed"
+    bind:checked={srt.processed}
+    disabled={!srt.enabled}
+  />
 
   {#if saved.enabled}
     <div class="flex flex-col gap-2 px-4 py-3">
@@ -181,9 +186,4 @@
       />
     </Field>
   {/if}
-  <ProcessedField
-    id="srt-processed"
-    bind:checked={srt.processed}
-    disabled={!srt.enabled}
-  />
 </Card>

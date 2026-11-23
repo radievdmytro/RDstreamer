@@ -341,3 +341,17 @@ export interface Saved {
   settings: Settings;
   notice: string | null;
 }
+
+/** Whether the processed picture (the HDMI look, encoded again) goes out */
+export interface ProcessingStatus {
+  state: "off" | "starting" | "running" | "failed";
+  /** Why it's off or failed, or how it runs */
+  detail: string;
+  targets: {
+    rtsp: boolean;
+    srt: boolean;
+    rtmp: boolean;
+    udp: boolean;
+    web: boolean;
+  };
+}

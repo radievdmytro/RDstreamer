@@ -146,6 +146,7 @@ pub fn router<S>(services: Services) -> Router<S> {
         .route("/srt", get(streaming::srt_status))
         .route("/rtmp", get(streaming::rtmp_status))
         .route("/udp", get(streaming::udp_status))
+        .route("/processing", get(streaming::processing_status))
         .route("/ndi", get(streaming::ndi_status))
         .route("/ndi/runtime", get(streaming::ndi_runtime))
         .route(

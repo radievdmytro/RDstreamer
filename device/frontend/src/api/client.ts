@@ -7,6 +7,7 @@ import type {
   OverlayStatus,
   RtmpStatus,
   UdpStatus,
+  ProcessingStatus,
   NdiStatus,
   NdiRuntime,
   OmtStatus,
@@ -179,6 +180,7 @@ export const api = {
   srt: () => request<SrtStatus>("GET", "/srt"),
   rtmp: () => request<RtmpStatus>("GET", "/rtmp"),
   udp: () => request<UdpStatus>("GET", "/udp"),
+  processing: () => request<ProcessingStatus>("GET", "/processing"),
   ndi: () => request<NdiStatus>("GET", "/ndi"),
   ndiRuntime: () => request<NdiRuntime>("GET", "/ndi/runtime"),
   downloadNdiRuntime: () =>

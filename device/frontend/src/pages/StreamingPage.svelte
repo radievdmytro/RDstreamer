@@ -91,6 +91,11 @@
       {#snippet aside()}
         <Switch bind:checked={rtsp.enabled} label="RTSP server" />
       {/snippet}
+      <ProcessedField
+        id="rtsp-processed"
+        bind:checked={rtsp.processed}
+        disabled={!rtsp.enabled}
+      />
 
       {#if saved.enabled}
         <div class="flex items-center gap-2 px-4 py-3">
@@ -135,11 +140,6 @@
           disabled={!rtsp.enabled}
         />
       </Field>
-      <ProcessedField
-        id="rtsp-processed"
-        bind:checked={rtsp.processed}
-        disabled={!rtsp.enabled}
-      />
       <Field
         label="Require password"
         for="rtsp-auth"

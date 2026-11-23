@@ -70,6 +70,12 @@ pub(super) async fn input_devices() -> Json<Vec<crate::input::uvc::UvcDevice>> {
     )
 }
 
+pub(super) async fn processing_status(
+    State(sv): State<Services>,
+) -> Json<crate::output::processed::ProcessingStatus> {
+    Json(sv.player.processed().status())
+}
+
 pub(super) async fn udp_status(State(sv): State<Services>) -> Json<UdpStatus> {
     Json(sv.udp.status())
 }
