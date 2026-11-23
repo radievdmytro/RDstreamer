@@ -68,8 +68,8 @@
   <Field
     label="Password"
     help={auth.enabled
-      ? "Changing anything needs a login. Forgot it? Delete /etc/ystreamer/auth.json on the device."
-      : "Not set: anyone on the network can change settings."}
+      ? `Guests opening http://${location.host} see only the picture; you log in at http://${location.host}/admin. Forgot it? Delete /etc/ystreamer/auth.json on the device.`
+      : "Not set: anyone on the network can change settings. Set one, and the plain address shows guests only the picture, with the settings behind /admin."}
   >
     <div class="flex gap-2">
       {#if auth.enabled}

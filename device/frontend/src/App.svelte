@@ -13,13 +13,22 @@
   import Unreachable from "@/components/layout/Unreachable.svelte";
   import Snackbar from "@/components/layout/Snackbar.svelte";
   import WatchPage from "@/pages/WatchPage.svelte";
+  import ViewerPage from "@/pages/ViewerPage.svelte";
   import SettingsView from "@/pages/SettingsView.svelte";
 
   const route = $derived(routeOf(address.path));
   const page = $derived(route.page);
   // Reached from the sidebar by someone who's only watching
-  const wantsLogin = $derived(address.path === "/login");
+  // /admin: the owner's way in, by password once one is set
+  const wantsLogin = $derived(
+    address.path === "/login" || address.path === "/admin",
+  );
   const isWatchPage = $derived(page.id === "watch" && !wantsLogin);
+  // Guests (a password is set and they haven't logged in) get the picture
+  // alone, at the plain address; /view shows the owner what they see
+  const viewerOnly = $derived(
+    address.path === "/view" || (isWatchPage && auth.loaded && !auth.admin),
+  );
 
   $effect(() => {
     if (wantsLogin && auth.loaded && auth.admin) address.go("/", true);
@@ -59,6 +68,8 @@
   <StartupScreen>
     <LoginForm reason="This device is password protected." />
   </StartupScreen>
+{:else if viewerOnly}
+  <ViewerPage />
 {:else}
   <Shell
     current={wantsLogin ? "login" : page.id}
