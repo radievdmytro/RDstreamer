@@ -141,7 +141,10 @@ pub fn start(
                 input_rx,
             ));
             tokio::spawn(crate::system::drives::watch());
-            tokio::spawn(crate::system::update::watch(Arc::clone(&services.store)));
+            tokio::spawn(crate::system::update::watch(
+                Arc::clone(&services.store),
+                Arc::clone(&services.metrics),
+            ));
             tokio::spawn(finish_recording_on_exit(Arc::clone(&services.recorder)));
             tokio::spawn(reload_login_on_hangup(Arc::clone(&services.auth)));
             tokio::spawn(recording_watch(

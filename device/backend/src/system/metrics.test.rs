@@ -78,3 +78,23 @@ fn reads_the_firmwares_power_flags() {
     assert_eq!(parse_throttled("50000"), Some(0x50000));
     assert_eq!(parse_throttled("nonsense"), None);
 }
+
+#[test]
+fn idle_means_nothing_going_on() {
+    let v = |pairs: &[(&str, f32)]| -> Vec<(String, f32)> {
+        pairs.iter().map(|(n, x)| (n.to_string(), *x)).collect()
+    };
+    assert!(idle(&v(&[
+        ("fps_in", 0.0),
+        ("recording", 0.0),
+        ("viewers_web", 0.0),
+        ("cpu", 30.0)
+    ])));
+    assert!(!idle(&v(&[("fps_in", 59.8)])), "video from the goggles");
+    assert!(!idle(&v(&[("fps_in", 0.0), ("recording", 1.0)])));
+    assert!(!idle(&v(&[("fps_in", 0.0), ("viewers_rtsp", 1.0)])));
+    assert!(
+        !idle(&v(&[("fps_in", 0.0), ("kbps_rtmp", 0.0)])),
+        "an RTMP stream is on"
+    );
+}

@@ -26,6 +26,9 @@ pub struct AdvancedSettings {
     pub terminal: bool,
     /// Ask the update server now and then whether there's a newer version
     pub check_for_updates: bool,
+    /// Install a downloaded update by itself once nothing is going on: no
+    /// video, recording, stream or viewer for a few minutes
+    pub auto_install_updates: bool,
 }
 
 impl Default for AdvancedSettings {
@@ -34,6 +37,7 @@ impl Default for AdvancedSettings {
             verbose_logs: false,
             terminal: false,
             check_for_updates: true,
+            auto_install_updates: false,
         }
     }
 }

@@ -129,6 +129,26 @@ impl Metrics {
     }
 }
 
+impl Metrics {
+    /// Nothing going on for the last `secs` seconds: no video coming in, no
+    /// recording, no stream or viewer taking it. False until there are that
+    /// many readings, so a fresh start never counts as idle
+    pub fn idle_for(&self, secs: usize) -> bool {
+        let history = self.history.lock().unwrap();
+        history.len() >= secs && history.iter().rev().take(secs).all(|s| idle(&s.values))
+    }
+}
+
+pub(crate) fn idle(values: &[(String, f32)]) -> bool {
+    values.iter().all(|(name, value)| match name.as_str() {
+        "fps_in" | "recording" => *value == 0.0,
+        n if n.starts_with("viewers_") => *value == 0.0,
+        // Only there while an RTMP stream or UDP sending is on
+        "kbps_rtmp" | "udp_destinations" => false,
+        _ => true,
+    })
+}
+
 struct Sampler {
     metrics: Arc<Metrics>,
     sources: Sources,

@@ -24,6 +24,10 @@ const PACKAGE: &str = "ystreamer";
 const FIRST_CHECK: Duration = Duration::from_secs(60);
 const CHECK_INTERVAL: Duration = Duration::from_secs(12 * 60 * 60);
 const RETRY_INTERVAL: Duration = Duration::from_secs(15 * 60);
+/// How often auto-install looks whether the device is idle
+const IDLE_POLL: Duration = Duration::from_secs(30);
+/// Nothing going on for this long (seconds of metrics) before auto-install
+const IDLE_SECS: usize = 5 * 60;
 
 /// The newest release the update server has told us about
 static LATEST: Mutex<Option<Release>> = Mutex::new(None);
@@ -104,31 +108,92 @@ pub async fn check() -> Result<Release, String> {
 }
 
 /// Look for a newer version in the background, for as long as the setting
-/// allows it
-pub async fn watch(store: std::sync::Arc<SettingsStore>) {
-    let mut wait = FIRST_CHECK;
+/// allows it. A newer one is downloaded and verified straight away, ready to
+/// install with one click; with auto-install on, it installs itself once the
+/// device has had nothing to do for a few minutes
+pub async fn watch(
+    store: std::sync::Arc<SettingsStore>,
+    metrics: std::sync::Arc<crate::system::metrics::Metrics>,
+) {
+    let mut next_check = tokio::time::Instant::now() + FIRST_CHECK;
     loop {
-        tokio::time::sleep(wait).await;
-        if !store.get().advanced.check_for_updates {
+        tokio::time::sleep(IDLE_POLL).await;
+        let advanced = store.get().advanced;
+        if !advanced.check_for_updates {
             *LATEST.lock().unwrap() = None;
-            wait = RETRY_INTERVAL;
             continue;
         }
-        wait = match check().await {
-            Ok(release) => {
-                if release.newer {
-                    println!("[update] version {} is available", release.version);
-                }
-                CHECK_INTERVAL
+        if tokio::time::Instant::now() >= next_check {
+            next_check = tokio::time::Instant::now()
+                + match check_and_fetch().await {
+                    Ok(()) => CHECK_INTERVAL,
+                    Err(e) => {
+                        if crate::settings::verbose() {
+                            eprintln!("[update] {e}");
+                        }
+                        RETRY_INTERVAL
+                    }
+                };
+        }
+        if advanced.auto_install_updates && metrics.idle_for(IDLE_SECS) && ready_to_install().await
+        {
+            println!("[update] nothing going on: installing the downloaded update");
+            if let Err(e) = install().await {
+                eprintln!("[update] {e}");
             }
-            Err(e) => {
-                if crate::settings::verbose() {
-                    eprintln!("[update] check failed: {e}");
-                }
-                RETRY_INTERVAL
-            }
-        };
+        }
     }
+}
+
+/// Ask for the newest release, and download it when it's newer than both
+/// what runs and what's already downloaded
+async fn check_and_fetch() -> Result<(), String> {
+    let release = check().await?;
+    if !release.newer {
+        return Ok(());
+    }
+    println!("[update] version {} is available", release.version);
+    let staged = version_of(&file(STAGED)).await;
+    if staged.as_deref() == Some(release.version.as_str()) {
+        return Ok(());
+    }
+    // One that failed before isn't tried again by itself
+    if failed_attempt().as_deref() == Some(release.version.as_str()) {
+        return Ok(());
+    }
+    download().await?;
+    println!(
+        "[update] version {} downloaded, ready to install",
+        release.version
+    );
+    Ok(())
+}
+
+/// A downloaded update that's newer than what runs, and nothing installing
+async fn ready_to_install() -> bool {
+    let Some(staged) = version_of(&file(STAGED)).await else {
+        return false;
+    };
+    if !is_newer(&staged, env!("CARGO_PKG_VERSION")) {
+        return false;
+    }
+    if failed_attempt().as_deref() == Some(staged.as_str()) {
+        return false;
+    }
+    !run("systemctl", &["is-active", UNIT])
+        .await
+        .is_ok_and(|state| matches!(state.trim(), "active" | "activating"))
+}
+
+/// The version whose install last failed, if the last one did
+fn failed_attempt() -> Option<String> {
+    let result = fs::read_to_string(file(RESULT)).ok()?;
+    if matches!(result.trim(), "" | "0") {
+        return None;
+    }
+    fs::read_to_string(file(ATTEMPT))
+        .ok()
+        .map(|v| v.trim().to_string())
 }
 
 /// Fetch the latest release and keep it for installing

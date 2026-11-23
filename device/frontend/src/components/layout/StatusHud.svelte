@@ -3,6 +3,10 @@
   import { metrics } from "@/stores/metrics.svelte";
   import { fan } from "@/stores/fan.svelte";
   import { wifi, signalQuality } from "@/stores/wifi.svelte";
+  import { auth } from "@/stores/auth.svelte";
+  import { api } from "@/api/client";
+  import type { UpdateStatus } from "@/types/system";
+  import Download from "@lucide/svelte/icons/download";
   import { recording, duration } from "@/stores/recording.svelte";
   import Thermometer from "@lucide/svelte/icons/thermometer";
   import FanIcon from "@lucide/svelte/icons/fan";
@@ -19,12 +23,32 @@
     metrics.start();
     fan.start();
     wifi.start();
+    checkUpdate();
+    updateTimer = setInterval(checkUpdate, 10 * 60 * 1000);
   });
   onDestroy(() => {
     metrics.stop();
     fan.stop();
     wifi.stop();
+    if (updateTimer) clearInterval(updateTimer);
   });
+
+  // A newer version downloaded and waiting: worth a glance from any page
+  let update = $state<UpdateStatus | null>(null);
+  let updateTimer: ReturnType<typeof setInterval> | null = null;
+  async function checkUpdate() {
+    if (!auth.admin) return;
+    try {
+      update = await api.update();
+    } catch {
+      // Not shown
+    }
+  }
+  const ready = $derived(
+    update?.staged && update.staged !== update.current && !update.installing
+      ? update.staged
+      : null,
+  );
 
   const temp = $derived(metrics.latest("temp"));
   const cpu = $derived(metrics.latest("cpu"));
@@ -163,6 +187,17 @@
     >
       <span class="rec-ring h-2 w-2 rounded-full bg-down"></span>
       REC {duration(recording.elapsed)}
+    </a>
+  {/if}
+
+  {#if ready}
+    <a
+      href="/system/updates"
+      class="{chip} border-primary/50 bg-primary/15 text-primary hover:border-primary hover:bg-primary/20"
+      title="RDstreamer {ready} is downloaded and checked: install it from System → Updates"
+    >
+      <Download class="h-3.5 w-3.5" aria-hidden="true" />
+      Update {ready}
     </a>
   {/if}
 

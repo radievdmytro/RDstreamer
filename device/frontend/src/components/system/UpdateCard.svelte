@@ -228,9 +228,21 @@
     <Field
       label="Check automatically"
       for="update-check"
-      help="Asks the update server about twice a day. Nothing is downloaded or installed without you."
+      help="Asks GitHub about twice a day and downloads a newer version (about 4 MB), ready to install with one click."
     >
       <Switch id="update-check" bind:checked={advanced.check_for_updates} />
+    </Field>
+    <Field
+      label="Install automatically"
+      for="update-auto"
+      disabled={!advanced.check_for_updates}
+      help="Installs a downloaded update by itself, but only after 5 minutes with no video from the goggles, no recording, no stream and nobody watching. If it doesn't start, the version before comes back."
+    >
+      <Switch
+        id="update-auto"
+        disabled={!advanced.check_for_updates}
+        bind:checked={advanced.auto_install_updates}
+      />
     </Field>
     {#if status.failure}
       <div class="border-t border-line px-4 py-3">

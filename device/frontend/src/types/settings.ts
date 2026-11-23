@@ -145,6 +145,8 @@ export interface Settings {
     verbose_logs: boolean;
     terminal: boolean;
     check_for_updates: boolean;
+    /** Install a downloaded update by itself once nothing is going on */
+    auto_install_updates: boolean;
   };
 }
 
