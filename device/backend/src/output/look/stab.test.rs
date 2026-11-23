@@ -52,67 +52,83 @@ fn a_flat_picture_gives_nothing_to_go_by() {
     assert!(estimate(&flat, &flat, true).is_none());
 }
 
+fn motion(x: f32, y: f32, angle: f32) -> Option<Motion> {
+    Some(Motion { x, y, angle })
+}
+
+const FRAME: u64 = 16_666_667;
+
 #[test]
 fn shake_is_undone_and_a_pan_let_through() {
+    let t = Tuning::default();
     let mut path = Path::default();
     // Shaking left and right: the correction leans against each jolt
-    let mut last = 0.0;
-    for i in 0..40 {
-        let jolt = if i % 2 == 0 { 0.04 } else { -0.04 };
-        let c = path.step(
-            Some(Motion {
-                x: jolt,
-                y: 0.0,
-                angle: 0.0,
-            }),
-            80,
-        );
+    for i in 0..40u64 {
+        let jolt = if i % 2 == 0 { 0.02 } else { -0.02 };
+        path.step(i * FRAME, motion(jolt, 0.0, 0.0), &t);
+        let c = path.correction(i * FRAME, &t);
         if i > 4 {
-            assert!(c.offset[0] * jolt < 0.0, "against the jolt");
+            assert!(c.offset[0] * jolt < 0.0, "against the jolt at {i}: {c:?}");
         }
-        last = c.offset[0];
     }
-    assert!(last.abs() < 0.05);
     // A steady pan: the correction stays within the zoom's room
-    for _ in 0..200 {
-        let c = path.step(
-            Some(Motion {
-                x: 0.02,
-                y: 0.0,
-                angle: 0.0,
-            }),
-            80,
-        );
-        assert!(c.offset[0].abs() <= margin(80) + 1e-6);
+    for i in 40..300u64 {
+        path.step(i * FRAME, motion(0.02, 0.0, 0.0), &t);
+        let c = path.correction(i * FRAME, &t);
+        assert!(c.offset[0].abs() <= t.margin() + 1e-6);
         assert!(c.zoom > 1.0);
     }
 }
 
 #[test]
-fn losing_track_resets_without_a_jump_later() {
+fn looking_ahead_follows_a_pan_without_lagging() {
+    let live = Tuning::default();
+    let ahead = Tuning {
+        delay_ms: 500,
+        ..live
+    };
     let mut path = Path::default();
-    path.step(
-        Some(Motion {
-            x: 0.1,
-            y: 0.0,
-            angle: 0.0,
-        }),
-        50,
-    );
-    let c = path.step(None, 50);
-    assert_eq!(c.offset, [0.0, 0.0]);
+    // A steady pan, with a little shake on it
+    for i in 0..120u64 {
+        let wobble = if i % 2 == 0 { 0.004 } else { -0.004 };
+        path.step(i * FRAME, motion(0.01 + wobble, 0.0, 0.0), &live);
+    }
+    // In the middle, with half a second known either side: a pan is
+    // straight, so the centred average sits on it (small correction); live,
+    // following behind, lags it
+    let mid = 60 * FRAME;
+    let centred = path.correction(mid, &ahead).offset[0].abs();
+    let behind = path.correction(mid, &live).offset[0].abs();
+    assert!(centred < behind, "{centred} vs {behind}");
+    assert!(centred < 0.01);
 }
 
 #[test]
-fn the_correction_found_is_the_pictures_own() {
-    let c = Correction {
-        offset: [0.1, 0.2],
-        angle: 0.01,
-        zoom: 1.1,
+fn the_horizon_is_left_alone_when_off() {
+    let t = Tuning {
+        horizon: 0,
+        ..Tuning::default()
     };
-    publish(Some(42), c);
-    publish(Some(43), Correction::NONE);
-    assert_eq!(correction_for(Some(42)), c);
-    // Not listed: the latest
-    assert_eq!(correction_for(Some(7)), Correction::NONE);
+    let mut path = Path::default();
+    for i in 0..30u64 {
+        path.step(
+            i * FRAME,
+            motion(0.0, 0.0, if i % 2 == 0 { 0.01 } else { -0.01 }),
+            &t,
+        );
+    }
+    assert_eq!(path.correction(29 * FRAME, &t).angle, 0.0);
+}
+
+#[test]
+fn a_jolt_too_big_to_be_motion_starts_again() {
+    let t = Tuning::default();
+    let mut path = Path::default();
+    for i in 0..20u64 {
+        path.step(i * FRAME, motion(0.01, 0.0, 0.0), &t);
+    }
+    // A cut: a huge jump, not followed
+    path.step(20 * FRAME, motion(0.9, 0.0, 0.0), &t);
+    let c = path.correction(20 * FRAME, &t);
+    assert_eq!(c.offset, [0.0, 0.0]);
 }

@@ -90,8 +90,11 @@ vec3 lookup(vec3 c) {
 }
 
 void main() {
-    vec2 uv = stab > 0.5 ? steady(v_texcoord) : v_texcoord;
-    uv = dewarp > 0.5 ? warp(uv) : uv;
+    // Straightened first, then steadied where the motion was measured: in
+    // the picture as the lens made it. The other way round, the lens bent
+    // the correction and the edges wobbled like jelly
+    vec2 uv = dewarp > 0.5 ? warp(v_texcoord) : v_texcoord;
+    uv = stab > 0.5 ? steady(uv) : uv;
     // What the correction pulls in from beyond the picture is black
     if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
         gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);

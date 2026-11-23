@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ProcessedField from "./ProcessedField.svelte";
   import { api } from "@/api/client";
   import type { Settings, UdpStatus } from "@/types/settings";
   import Card from "@/components/ui/Card.svelte";
@@ -89,4 +90,9 @@
       disabled={!udp.enabled}
     />
   </Field>
+  <ProcessedField
+    id="udp-processed"
+    bind:checked={udp.processed}
+    disabled={!udp.enabled}
+  />
 </Card>

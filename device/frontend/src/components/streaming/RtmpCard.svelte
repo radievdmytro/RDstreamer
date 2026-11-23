@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ProcessedField from "./ProcessedField.svelte";
   import { api } from "@/api/client";
   import type { RtmpStatus, Settings } from "@/types/settings";
   import Card from "@/components/ui/Card.svelte";
@@ -132,4 +133,9 @@
       disabled={!rtmp.enabled}
     />
   </Field>
+  <ProcessedField
+    id="rtmp-processed"
+    bind:checked={rtmp.processed}
+    disabled={!rtmp.enabled}
+  />
 </Card>

@@ -66,6 +66,8 @@ export interface Settings {
     auth: boolean;
     username: string;
     password: string;
+    /** With the HDMI look (LUT, dewarp, stabilisation) rather than the goggles' own picture */
+    processed: boolean;
   };
   srt: {
     enabled: boolean;
@@ -75,18 +77,24 @@ export interface Settings {
     latency_ms: number;
     passphrase: string;
     stream_id: string;
+    /** With the HDMI look (LUT, dewarp, stabilisation) rather than the goggles' own picture */
+    processed: boolean;
   };
   rtmp: {
     enabled: boolean;
     url: string;
     key: string;
     silent_audio: boolean;
+    /** With the HDMI look (LUT, dewarp, stabilisation) rather than the goggles' own picture */
+    processed: boolean;
   };
   udp: {
     enabled: boolean;
     format: "rtp" | "mpegts";
     /** host:port list, comma separated */
     destinations: string;
+    /** With the HDMI look (LUT, dewarp, stabilisation) rather than the goggles' own picture */
+    processed: boolean;
   };
   ndi: NetworkSource;
   omt: NetworkSource;
@@ -110,6 +118,8 @@ export interface Settings {
     max_viewers: number;
     /** Original, a lighter 720p copy, or the light one once a viewer lags */
     quality: ViewerQuality;
+    /** With the HDMI look (LUT, dewarp, stabilisation) rather than the goggles' own picture */
+    processed: boolean;
   };
   display: {
     hdmi_output: boolean;
@@ -144,13 +154,15 @@ export interface Settings {
     /** Shake taken out of the picture, from the picture itself */
     stabilization: {
       enabled: boolean;
-      /** 0-100: smoother, and zoomed in more */
-      strength: number;
-      /** Level out turning too */
-      roll: boolean;
+      /** 0-100: how much of the shake is taken out */
+      shake: number;
+      /** 0-100: how much of the horizon's wobble is levelled; 0 leaves it */
+      horizon: number;
+      /** 2-30 %: zoomed in this much, the room the picture has to move */
+      crop: number;
+      /** 0, 250, 500 or 1000 ms: shown later, smoothed with what comes next */
+      delay_ms: number;
     };
-    /** The look in the streams and browsers too, encoded again */
-    processed_streams: boolean;
   };
   splash: {
     freeze_last_frame: boolean;

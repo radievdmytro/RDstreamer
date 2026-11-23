@@ -10,6 +10,9 @@ pub struct RtspSettings {
     pub auth: bool,
     pub username: String,
     pub password: String,
+    /// With the HDMI look (LUT, lens correction, stabilisation) rather than
+    /// the goggles' own picture
+    pub processed: bool,
 }
 
 impl Default for RtspSettings {
@@ -22,6 +25,7 @@ impl Default for RtspSettings {
             auth: false,
             username: "admin".into(),
             password: String::new(),
+            processed: false,
         }
     }
 }
@@ -76,6 +80,9 @@ pub struct SrtSettings {
     pub passphrase: String,
     /// Caller only; some servers route or authenticate by it
     pub stream_id: String,
+    /// With the HDMI look (LUT, lens correction, stabilisation) rather than
+    /// the goggles' own picture
+    pub processed: bool,
 }
 
 impl Default for SrtSettings {
@@ -88,6 +95,7 @@ impl Default for SrtSettings {
             latency_ms: 200,
             passphrase: String::new(),
             stream_id: String::new(),
+            processed: false,
         }
     }
 }
@@ -131,6 +139,9 @@ pub struct RtmpSettings {
     pub key: String,
     /// Some platforms refuse or flag streams without audio
     pub silent_audio: bool,
+    /// With the HDMI look (LUT, lens correction, stabilisation) rather than
+    /// the goggles' own picture
+    pub processed: bool,
 }
 
 impl Default for RtmpSettings {
@@ -140,6 +151,7 @@ impl Default for RtmpSettings {
             url: String::new(),
             key: String::new(),
             silent_audio: true,
+            processed: false,
         }
     }
 }
@@ -196,6 +208,9 @@ pub struct UdpSettings {
     pub format: UdpFormat,
     /// `host:port`, comma or space separated; multicast addresses work too
     pub destinations: String,
+    /// With the HDMI look (LUT, lens correction, stabilisation) rather than
+    /// the goggles' own picture
+    pub processed: bool,
 }
 
 impl Default for UdpSettings {
@@ -204,6 +219,7 @@ impl Default for UdpSettings {
             enabled: false,
             format: UdpFormat::Rtp,
             destinations: String::new(),
+            processed: false,
         }
     }
 }
@@ -314,12 +330,26 @@ pub enum ViewerTransport {
     Webrtc,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(default)]
 pub struct ViewerSettings {
     pub transport: ViewerTransport,
     pub max_viewers: u8,
     pub quality: ViewerQuality,
+    /// Browsers see the HDMI look (on by default: viewers want the finished
+    /// picture; the streams keep the flat one for grading elsewhere)
+    pub processed: bool,
+}
+
+impl Default for ViewerSettings {
+    fn default() -> Self {
+        Self {
+            transport: ViewerTransport::default(),
+            max_viewers: 0,
+            quality: ViewerQuality::default(),
+            processed: true,
+        }
+    }
 }
 
 /// What browsers get: the goggles' own video, a lighter copy (720p30 at a

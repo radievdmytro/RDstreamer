@@ -140,9 +140,13 @@ fn run() -> anyhow::Result<()> {
         let out = Arc::downgrade(&fanout);
         player.processed().set_output(move |au| {
             if let Some(f) = out.upgrade() {
-                f.network(au);
+                let to = f.processed.taking();
+                f.network(au, to);
             }
         });
+        player
+            .processed()
+            .set_targets(crate::output::processed::Targets::of(&cfg));
         player.processed().apply(&cfg.display);
     }
     fanout.start_splash();

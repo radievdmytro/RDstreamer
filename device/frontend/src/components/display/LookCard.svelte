@@ -136,13 +136,6 @@
       />
     </div>
   </Field>
-  <Field
-    label="Also in streams and browsers"
-    for="processed-streams"
-    help="RTMP, SRT, RTSP, UDP and the browsers get the same picture as HDMI, encoded again by the Pi: up to 1080p at 30 fps and about 0.1 s later. Off: they get the goggles' own video, 60 fps, untouched. If it can't run, they get the original."
-  >
-    <Switch id="processed-streams" bind:checked={display.processed_streams} />
-  </Field>
 </Card>
 
 <Card title="LUT">

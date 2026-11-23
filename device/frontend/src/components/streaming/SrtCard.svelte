@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ProcessedField from "./ProcessedField.svelte";
   import { copyText } from "@/lib/clipboard";
   import { api } from "@/api/client";
   import type { Settings, SrtStatus } from "@/types/settings";
@@ -180,4 +181,9 @@
       />
     </Field>
   {/if}
+  <ProcessedField
+    id="srt-processed"
+    bind:checked={srt.processed}
+    disabled={!srt.enabled}
+  />
 </Card>

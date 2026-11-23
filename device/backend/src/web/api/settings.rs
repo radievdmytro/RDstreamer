@@ -1,3 +1,4 @@
+use crate::output::processed::Targets;
 use axum::{
     Json,
     extract::{Path, State},
@@ -113,31 +114,41 @@ pub(super) async fn commit(sv: &Services, next: Settings) -> Result<Json<Saved>,
     validate(&next).map_err(bad)?;
     let prev = sv.store.get();
     let mut notice = None;
+    // Which picture an output takes isn't the output's business: switching
+    // it mustn't restart the server and drop its viewers
+    let was = {
+        let mut w = prev.clone();
+        w.rtsp.processed = next.rtsp.processed;
+        w.srt.processed = next.srt.processed;
+        w.rtmp.processed = next.rtmp.processed;
+        w.udp.processed = next.udp.processed;
+        w
+    };
 
-    if next.rtsp != prev.rtsp {
+    if next.rtsp != was.rtsp {
         sv.rtsp.apply(&next.rtsp).map_err(|e| {
             let _ = sv.rtsp.apply(&prev.rtsp);
             failed(format!("RTSP server: {e}"))
         })?;
     }
 
-    if next.srt != prev.srt
+    if next.srt != was.srt
         && let Err(e) = sv.srt.apply(&next.srt)
     {
-        if next.rtsp != prev.rtsp {
+        if next.rtsp != was.rtsp {
             let _ = sv.rtsp.apply(&prev.rtsp);
         }
         let _ = sv.srt.apply(&prev.srt);
         return Err(failed(format!("SRT: {e}")));
     }
 
-    if next.udp != prev.udp
+    if next.udp != was.udp
         && let Err(e) = sv.udp.apply(&next.udp)
     {
-        if next.rtsp != prev.rtsp {
+        if next.rtsp != was.rtsp {
             let _ = sv.rtsp.apply(&prev.rtsp);
         }
-        if next.srt != prev.srt {
+        if next.srt != was.srt {
             let _ = sv.srt.apply(&prev.srt);
         }
         let _ = sv.udp.apply(&prev.udp);
@@ -147,13 +158,13 @@ pub(super) async fn commit(sv: &Services, next: Settings) -> Result<Json<Saved>,
     // Both refuse to start without what they need on the device: the NDI
     // runtime, or a free port for OMT
     let undo_streams = |sv: &Services| {
-        if next.rtsp != prev.rtsp {
+        if next.rtsp != was.rtsp {
             let _ = sv.rtsp.apply(&prev.rtsp);
         }
-        if next.srt != prev.srt {
+        if next.srt != was.srt {
             let _ = sv.srt.apply(&prev.srt);
         }
-        if next.udp != prev.udp {
+        if next.udp != was.udp {
             let _ = sv.udp.apply(&prev.udp);
         }
     };
@@ -185,22 +196,22 @@ pub(super) async fn commit(sv: &Services, next: Settings) -> Result<Json<Saved>,
     }
 
     // Never refused: an unreachable server is retried in the background
-    if next.rtmp != prev.rtmp {
+    if next.rtmp != was.rtmp {
         sv.rtmp.apply(&next.rtmp);
     }
 
     let display_changed = next.display != prev.display;
     let rollback = |sv: &Services| {
-        if next.rtsp != prev.rtsp {
+        if next.rtsp != was.rtsp {
             let _ = sv.rtsp.apply(&prev.rtsp);
         }
-        if next.srt != prev.srt {
+        if next.srt != was.srt {
             let _ = sv.srt.apply(&prev.srt);
         }
-        if next.rtmp != prev.rtmp {
+        if next.rtmp != was.rtmp {
             sv.rtmp.apply(&prev.rtmp);
         }
-        if next.udp != prev.udp {
+        if next.udp != was.udp {
             let _ = sv.udp.apply(&prev.udp);
         }
         if next.ndi != prev.ndi {
@@ -222,10 +233,14 @@ pub(super) async fn commit(sv: &Services, next: Settings) -> Result<Json<Saved>,
         }
     };
 
+    sv.player.processed().set_targets(Targets::of(&next));
     if display_changed && let Err(e) = sv.player.apply(&next.display) {
         rollback(sv);
+        sv.player.processed().set_targets(Targets::of(&prev));
         return Err(failed(format!("HDMI output: {e}")));
     }
+    // A new target may want it running, or none any more
+    sv.player.processed().apply(&next.display);
 
     let timezone_changed = next.device.timezone != prev.device.timezone;
     if timezone_changed && let Err(e) = system::set_timezone(&next.device.timezone).await {

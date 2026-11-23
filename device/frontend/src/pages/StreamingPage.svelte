@@ -14,6 +14,7 @@
   import UdpCard from "@/components/streaming/UdpCard.svelte";
   import NdiCard from "@/components/streaming/NdiCard.svelte";
   import OmtCard from "@/components/streaming/OmtCard.svelte";
+  import ProcessedField from "@/components/streaming/ProcessedField.svelte";
   let {
     rtsp = $bindable(),
     srt = $bindable(),
@@ -134,6 +135,11 @@
           disabled={!rtsp.enabled}
         />
       </Field>
+      <ProcessedField
+        id="rtsp-processed"
+        bind:checked={rtsp.processed}
+        disabled={!rtsp.enabled}
+      />
       <Field
         label="Require password"
         for="rtsp-auth"
@@ -176,6 +182,11 @@
     <OmtCard bind:omt saved={savedOmt} />
   {:else if tab === "browser"}
     <Card title="Browser viewing">
+      <ProcessedField
+        id="viewer-processed"
+        browser
+        bind:checked={viewer.processed}
+      />
       <Field
         label="Transport"
         help="WebRTC: lowest latency. WebSocket: steadier frame rate."

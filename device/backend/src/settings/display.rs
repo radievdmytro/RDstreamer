@@ -17,26 +17,33 @@ pub struct DisplaySettings {
     pub dewarp: DewarpSettings,
     /// Shake taken out of the picture, from the picture itself
     pub stabilization: StabilizationSettings,
-    /// LUT, lens correction and stabilisation in the streams and browsers
-    /// too, encoded again at up to 1080p30; otherwise they get the goggles'
-    /// own video
-    pub processed_streams: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(default)]
 pub struct StabilizationSettings {
     pub enabled: bool,
-    /// 0-100: how smooth, and how much the picture is zoomed to make room
-    pub strength: u8,
-    /// Level out turning too, not just shifting
-    pub roll: bool,
+    /// 0-100: how much sideways and up-down shake is smoothed
+    pub shake: u8,
+    /// 0-100: how much the horizon's wobble is levelled; 0 leaves it
+    pub horizon: u8,
+    /// 2-30 %: zoom that makes room for the corrections
+    pub crop: u8,
+    /// 0 (live), 250, 500 or 1000 ms later, to smooth with the motion
+    /// ahead known: steadier and no lag on pans, for the cost of the wait
+    pub delay_ms: u16,
 }
 
 impl StabilizationSettings {
     pub fn validate(&self) -> Result<(), String> {
-        if self.strength > 100 {
-            return Err("Stabilisation strength is 0 to 100".into());
+        if self.shake > 100 || self.horizon > 100 {
+            return Err("Stabilisation strengths are 0 to 100".into());
+        }
+        if !(2..=30).contains(&self.crop) {
+            return Err("Stabilisation crop is 2 to 30 %".into());
+        }
+        if ![0, 250, 500, 1000].contains(&self.delay_ms) {
+            return Err("Stabilisation delay is 0, 250, 500 or 1000 ms".into());
         }
         Ok(())
     }
@@ -46,8 +53,10 @@ impl Default for StabilizationSettings {
     fn default() -> Self {
         Self {
             enabled: false,
-            strength: 60,
-            roll: true,
+            shake: 60,
+            horizon: 40,
+            crop: 10,
+            delay_ms: 0,
         }
     }
 }
@@ -160,7 +169,6 @@ impl Default for DisplaySettings {
             look: LookSettings::default(),
             dewarp: DewarpSettings::default(),
             stabilization: StabilizationSettings::default(),
-            processed_streams: false,
         }
     }
 }

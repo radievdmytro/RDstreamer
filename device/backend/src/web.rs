@@ -45,7 +45,10 @@ impl AppState {
     /// The video for one browser: the light stream when asked for and it
     /// runs, else the original. The guard keeps the light encoder going
     fn video_for(&self, want: &Want) -> (broadcast::Receiver<AccessUnit>, Option<light::Watching>) {
-        if want.quality.as_deref() == Some("light") {
+        // The light copy is made from the goggles' picture: viewers set to
+        // get the processed one keep it, at its full size
+        let processed = self.services.player.processed().taking().web;
+        if want.quality.as_deref() == Some("light") && !processed {
             match self.light.watch() {
                 Ok((rx, watching)) => return (rx, Some(watching)),
                 Err(e) => eprintln!("[light] {e}; sending the original"),

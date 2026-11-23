@@ -10,7 +10,7 @@
 //! at p + m.
 
 use std::collections::VecDeque;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
 
 use gstreamer as gst;
 use gstreamer_video as gst_video;
@@ -176,7 +176,20 @@ pub fn estimate(prev: &Small, cur: &Small, roll: bool) -> Option<Motion> {
     let dy = mid.round() as i32;
     let (pf, pt) = (clamp_h(SEARCH + dy), clamp_h(H as i32 - SEARCH + dy));
     let (cf, ct) = (clamp_h(pf as i32 - dy), clamp_h(pt as i32 - dy));
-    let (sx, fit_x) = shift(&prev.columns_between(pf, pt), &cur.columns_between(cf, ct));
+    // Across from the top and bottom halves separately, then their mean:
+    // one half's moving object or rolling-shutter skew counts for less
+    let mid_p = (pf + pt) / 2;
+    let mid_c = (cf + ct) / 2;
+    let (sx_top, fit_t) = shift(
+        &prev.columns_between(pf, mid_p),
+        &cur.columns_between(cf, mid_c),
+    );
+    let (sx_bottom, fit_b) = shift(
+        &prev.columns_between(mid_p, pt),
+        &cur.columns_between(mid_c, ct),
+    );
+    let sx = (sx_top + sx_bottom) / 2.0;
+    let fit_x = fit_t.max(fit_b);
     // Flat or unrelated pictures: nothing to go by
     let contrast = {
         let c = cur.columns();
@@ -202,105 +215,202 @@ pub fn estimate(prev: &Small, cur: &Small, roll: bool) -> Option<Motion> {
     })
 }
 
-/// The camera's path and its smoothed version
+/// How it's tuned, changed while running
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Tuning {
+    /// 0-100: how much sideways and up-down shake is smoothed
+    pub shake: u8,
+    /// 0-100: how much the horizon's wobble is smoothed; 0 leaves it
+    pub horizon: u8,
+    /// Zoom that makes room for the corrections, % (5-30)
+    pub crop: u8,
+    /// How far ahead it may look, by showing the picture this much later:
+    /// 0 for live, where it can only follow
+    pub delay_ms: u16,
+}
+
+impl Tuning {
+    /// Room for corrections in shader units (the height is 2)
+    fn margin(&self) -> f32 {
+        // Zoomed by z, the picture's edge is at 1/z: 1 - 1/z to spare
+        1.0 - 1.0 / self.zoom()
+    }
+
+    fn zoom(&self) -> f32 {
+        1.0 + self.crop.clamp(2, 40) as f32 / 100.0
+    }
+}
+
+impl Default for Tuning {
+    fn default() -> Self {
+        Self {
+            shake: 60,
+            horizon: 40,
+            crop: 12,
+            delay_ms: 0,
+        }
+    }
+}
+
+/// One analysed picture: where the camera had got to
+#[derive(Clone, Copy, Debug)]
+struct Point {
+    pts: u64,
+    path: Motion,
+    /// Followed live (for no delay)
+    live: Motion,
+}
+
+/// The camera's path, picture by picture, for a few seconds back
 #[derive(Default)]
 pub struct Path {
+    points: VecDeque<Point>,
     path: Motion,
-    smooth: Motion,
+    live: Motion,
+    /// The last few motions, to spot one that can't be real
+    recent: VecDeque<Motion>,
 }
+
+/// Seconds of path kept: enough for the longest delay's window
+const KEEP_NS: u64 = 4_000_000_000;
 
 impl Path {
-    /// After one picture's motion: the correction for it. `strength` 0-100
-    pub fn step(&mut self, m: Option<Motion>, strength: u8) -> Correction {
-        let Some(m) = m else {
-            // Lost track: start again from here, without a jump
-            self.smooth = self.path;
-            return self.correction(strength);
-        };
-        self.path.x += m.x;
-        self.path.y += m.y;
-        self.path.angle += m.angle;
-        // Stronger smoothing follows the path more slowly
-        let s = strength.min(100) as f32 / 100.0;
-        let follow = 0.3 * (1.0 - s) + 0.015;
-        self.smooth.x += (self.path.x - self.smooth.x) * follow;
-        self.smooth.y += (self.path.y - self.smooth.y) * follow;
-        self.smooth.angle += (self.path.angle - self.smooth.angle) * follow;
-        // Never more than the zoom leaves room for: a pan is let through
-        let margin = margin(strength);
-        let limit = |smooth: &mut f32, path: f32, max: f32| {
-            *smooth = path + (*smooth - path).clamp(-max, max);
-        };
-        limit(&mut self.smooth.x, self.path.x, margin);
-        limit(&mut self.smooth.y, self.path.y, margin);
-        limit(&mut self.smooth.angle, self.path.angle, margin * 0.6);
-        self.correction(strength)
+    /// Notes one picture's motion (None: lost track)
+    pub fn step(&mut self, pts: u64, m: Option<Motion>, t: &Tuning) {
+        let m = m.filter(|m| self.plausible(m));
+        match m {
+            Some(m) => {
+                self.path.x += m.x;
+                self.path.y += m.y;
+                self.path.angle += m.angle;
+                self.recent.push_back(m);
+                if self.recent.len() > 15 {
+                    self.recent.pop_front();
+                }
+                // Live: follows the path, more slowly the stronger it is
+                let follow = |s: u8| 0.35 * (1.0 - s.min(100) as f32 / 100.0) + 0.02;
+                self.live.x += (self.path.x - self.live.x) * follow(t.shake);
+                self.live.y += (self.path.y - self.live.y) * follow(t.shake);
+                self.live.angle += (self.path.angle - self.live.angle) * follow(t.horizon);
+            }
+            None => {
+                // A cut or lost track: start again from here, and forget
+                // the path before it so nothing smooths across it
+                self.live = self.path;
+                self.points.clear();
+                self.recent.clear();
+            }
+        }
+        self.points.push_back(Point {
+            pts,
+            path: self.path,
+            live: self.live,
+        });
+        while self
+            .points
+            .front()
+            .is_some_and(|p| pts.saturating_sub(p.pts) > KEEP_NS)
+        {
+            self.points.pop_front();
+        }
     }
 
-    fn correction(&self, strength: u8) -> Correction {
+    /// A jolt far beyond the last few is a cut or a mismatch, not motion
+    fn plausible(&self, m: &Motion) -> bool {
+        if self.recent.len() < 5 {
+            return true;
+        }
+        let typical = |f: fn(&Motion) -> f32| {
+            let mut v: Vec<f32> = self.recent.iter().map(|m| f(m).abs()).collect();
+            v.sort_by(f32::total_cmp);
+            v[v.len() / 2]
+        };
+        let big = |now: f32, usual: f32, floor: f32| now.abs() > (usual * 6.0).max(floor);
+        !(big(m.x, typical(|m| m.x), 0.25)
+            || big(m.y, typical(|m| m.y), 0.25)
+            || big(m.angle, typical(|m| m.angle), 0.05))
+    }
+
+    /// The correction for the picture at `pts`
+    pub fn correction(&self, pts: u64, t: &Tuning) -> Correction {
+        let Some(i) = self.points.iter().rposition(|p| p.pts == pts) else {
+            return self
+                .points
+                .back()
+                .map_or(Correction::NONE, |p| self.correct(p.path, p.live, t));
+        };
+        let here = self.points[i];
+        if t.delay_ms == 0 {
+            return self.correct(here.path, here.live, t);
+        }
+        // Delayed: the path is known on both sides; a gaussian average
+        // around this picture, wider the stronger
+        let half = t.delay_ms as f64 * 1e6;
+        let smooth_over = |strength: u8| (half * strength.min(100) as f64 / 100.0).max(1.0);
+        let (sx, sa) = (smooth_over(t.shake), smooth_over(t.horizon));
+        let mut sum = [0f64; 3];
+        let mut weight = [0f64; 2];
+        for p in &self.points {
+            let d = p.pts as f64 - pts as f64;
+            if d.abs() > half {
+                continue;
+            }
+            let wx = (-0.5 * (d / (sx / 2.0)).powi(2)).exp();
+            let wa = (-0.5 * (d / (sa / 2.0)).powi(2)).exp();
+            sum[0] += wx * p.path.x as f64;
+            sum[1] += wx * p.path.y as f64;
+            sum[2] += wa * p.path.angle as f64;
+            weight[0] += wx;
+            weight[1] += wa;
+        }
+        let smooth = Motion {
+            x: (sum[0] / weight[0].max(1e-9)) as f32,
+            y: (sum[1] / weight[0].max(1e-9)) as f32,
+            angle: (sum[2] / weight[1].max(1e-9)) as f32,
+        };
+        self.correct(here.path, smooth, t)
+    }
+
+    fn correct(&self, path: Motion, smooth: Motion, t: &Tuning) -> Correction {
+        let m = t.margin();
+        // Never more than the zoom leaves room for: a pan is let through
+        let horizon = if t.horizon == 0 { 0.0 } else { 1.0 };
         Correction {
-            offset: [self.smooth.x - self.path.x, self.smooth.y - self.path.y],
-            angle: self.smooth.angle - self.path.angle,
-            zoom: 1.0 + margin(strength) * 0.9,
+            offset: [
+                (smooth.x - path.x).clamp(-m, m),
+                (smooth.y - path.y).clamp(-m, m),
+            ],
+            // Turning moves the corners furthest: about twice as far
+            angle: ((smooth.angle - path.angle) * horizon).clamp(-m * 0.4, m * 0.4),
+            zoom: t.zoom(),
         }
     }
 }
 
-/// Room for corrections, in shader units of the height (2): 5-15 %
-fn margin(strength: u8) -> f32 {
-    0.1 + 0.2 * strength.min(100) as f32 / 100.0
-}
-
-/// The corrections of recent pictures by timestamp, for the GPU stages to
-/// find theirs; and the last one, for a picture not in the list
+/// The path, shared with the GPU stages that look corrections up in it
 struct Shared {
-    recent: VecDeque<(u64, Correction)>,
-    last: Correction,
+    path: Path,
+    tuning: Tuning,
 }
 
-static SHARED: Mutex<Shared> = Mutex::new(Shared {
-    recent: VecDeque::new(),
-    last: Correction::NONE,
+static SHARED: LazyLock<Mutex<Shared>> = LazyLock::new(|| {
+    Mutex::new(Shared {
+        path: Path::default(),
+        tuning: Tuning::default(),
+    })
 });
 
+/// The correction for the picture with this timestamp
 pub fn correction_for(pts: Option<u64>) -> Correction {
     let shared = SHARED.lock().unwrap();
-    pts.and_then(|pts| {
-        shared
-            .recent
-            .iter()
-            .rev()
-            .find(|(t, _)| *t == pts)
-            .map(|(_, c)| *c)
-    })
-    .unwrap_or(shared.last)
-}
-
-fn publish(pts: Option<u64>, c: Correction) {
-    let mut shared = SHARED.lock().unwrap();
-    shared.last = c;
-    if let Some(pts) = pts {
-        shared.recent.push_back((pts, c));
-        while shared.recent.len() > 64 {
-            shared.recent.pop_front();
-        }
+    match pts {
+        Some(pts) => shared.path.correction(pts, &shared.tuning),
+        None => Correction::NONE,
     }
 }
 
-/// The settings it runs with, changed while running
-#[derive(Clone, Copy)]
-pub struct Tuning {
-    pub strength: u8,
-    pub roll: bool,
-}
-
-static TUNING: Mutex<Tuning> = Mutex::new(Tuning {
-    strength: 50,
-    roll: true,
-});
-
 pub fn tune(t: Tuning) {
-    *TUNING.lock().unwrap() = t;
+    SHARED.lock().unwrap().tuning = t;
 }
 
 /// Analysing while held; the GPU stages hold one each
@@ -341,17 +451,20 @@ fn join(decoder: &Arc<SharedDecoder>) -> Result<Arc<Running>, String> {
         return Ok(r);
     }
     let mut prev: Option<Small> = None;
-    let mut path = Path::default();
     let subscription = decoder.subscribe(move |sample| {
-        let pts = sample.buffer().and_then(|b| b.pts()).map(|t| t.nseconds());
+        let Some(pts) = sample.buffer().and_then(|b| b.pts()).map(|t| t.nseconds()) else {
+            return;
+        };
         let small = small_of(sample);
-        let tuning = *TUNING.lock().unwrap();
+        let roll = SHARED.lock().unwrap().tuning.horizon > 0;
         let motion = match (&prev, &small) {
-            (Some(p), Some(c)) => estimate(p, c, tuning.roll),
+            (Some(p), Some(c)) => estimate(p, c, roll),
             _ => None,
         };
-        let correction = path.step(motion, tuning.strength);
-        publish(pts, correction);
+        let mut shared = SHARED.lock().unwrap();
+        let tuning = shared.tuning;
+        shared.path.step(pts, motion, &tuning);
+        drop(shared);
         prev = small;
     })?;
     let running = Arc::new(Running {
@@ -368,7 +481,7 @@ fn stop() {
     let mut a = ANALYSIS.lock().unwrap();
     a.users = a.users.saturating_sub(1);
     if a.users == 0 && a.running.take().is_some() {
-        publish(None, Correction::NONE);
+        SHARED.lock().unwrap().path = Path::default();
         println!("[stab] stopped");
     }
 }

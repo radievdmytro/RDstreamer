@@ -457,14 +457,52 @@ fn file_path(id: &str) -> Option<PathBuf> {
 
 /// Makes the settings' LUT, strength and dewarp the ones in use. The same LUT
 /// again keeps its texture
+/// How much later the GPU stages show the picture: the stabilisation's
+/// look-ahead, while it's on
+pub fn delay_of(cfg: &crate::settings::DisplaySettings) -> u16 {
+    if cfg.stabilization.enabled {
+        cfg.stabilization.delay_ms
+    } else {
+        0
+    }
+}
+
+/// For the image processor while the delay holds pictures back: in its own
+/// memory, which the GPU copies from, so the second or so held is in GPU
+/// memory and the processor's few buffers are free again at once
+pub const OWN_BUFFERS: &str = "capture-io-mode=mmap";
+
+/// The picture's format into the GPU, and the stage that holds it back for
+/// the delay. Held back as NV12 (half RGBA's size), in GPU memory, then
+/// converted there
+pub fn delay_stage(cfg: &crate::settings::DisplaySettings) -> (&'static str, String) {
+    match delay_of(cfg) {
+        0 => ("RGBA", String::new()),
+        ms => (
+            "NV12",
+            format!(
+                "queue max-size-buffers=0 max-size-bytes=0 max-size-time={} min-threshold-time={} ! glcolorconvert ! ",
+                (ms as u64 + 1000) * 1_000_000,
+                ms as u64 * 1_000_000
+            ),
+        ),
+    }
+}
+
 pub fn select(
     look: &LookSettings,
     dewarp: &DewarpSettings,
     stabilization: &crate::settings::StabilizationSettings,
 ) {
     stab::tune(stab::Tuning {
-        strength: stabilization.strength,
-        roll: stabilization.roll,
+        shake: stabilization.shake,
+        horizon: stabilization.horizon,
+        crop: stabilization.crop,
+        delay_ms: if stabilization.enabled {
+            stabilization.delay_ms
+        } else {
+            0
+        },
     });
     let path = file_path(&look.lut);
     let stamp = path

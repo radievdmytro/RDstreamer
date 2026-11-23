@@ -30,9 +30,9 @@ const PIPELINE: &str = "appsrc name=src is-live=true block=false format=time \
 // Tried on a Pi 4: 1080p manages about 48 fps, 720p a smooth 60
 const PIPELINE_LOOK: &str = "appsrc name=src is-live=true block=false format=time \
     leaky-type=downstream max-buffers=1 ! \
-    {convert} ! video/x-raw,format=RGBA{size} ! \
+    {convert} ! video/x-raw,format={format}{size} ! \
     queue max-size-buffers=2 max-size-bytes=0 max-size-time=0 leaky=downstream ! \
-    glupload ! rdlook ! gldownload ! video/x-raw(memory:DMABuf) ! \
+    glupload ! {delay}rdlook ! gldownload ! video/x-raw(memory:DMABuf) ! \
     {crop}kmssink name=sink sync=false skip-vsync=true";
 
 // DRM plane rotation bits
@@ -289,6 +289,7 @@ impl GstPlayer {
         let unchanged = st.running.is_some()
             && st.running.as_ref().is_some_and(|r| r.look == look)
             && st.cfg.look.quality == cfg.look.quality
+            && crate::output::look::delay_of(&st.cfg) == crate::output::look::delay_of(cfg)
             && st.cfg.mode == cfg.mode
             && st.cfg.scaling == cfg.scaling
             && st.cfg.rotate_180 == cfg.rotate_180
@@ -583,13 +584,23 @@ fn build(
         } else {
             "videoconvertscale"
         };
-        crate::output::look::VIDEO_LEVELS.store(isp, Ordering::Relaxed);
+        let (format, delay) = crate::output::look::delay_stage(cfg);
+        let convert = if isp && !delay.is_empty() {
+            format!("{convert} {}", crate::output::look::OWN_BUFFERS)
+        } else {
+            convert.to_string()
+        };
+        // Converted to RGBA by the image processor, it comes in video levels;
+        // through the GPU's own conversion (with a delay) it doesn't
+        crate::output::look::VIDEO_LEVELS.store(isp && delay.is_empty(), Ordering::Relaxed);
         let size = match cfg.look.quality {
             crate::settings::LookQuality::Speed => ",height=720,pixel-aspect-ratio=1/1",
             crate::settings::LookQuality::Quality => "",
         };
         PIPELINE_LOOK
-            .replace("{convert}", convert)
+            .replace("{format}", format)
+            .replace("{delay}", &delay)
+            .replace("{convert}", &convert)
             .replace("{size}", size)
             .replace("{crop}", &crop)
     } else {

@@ -19,6 +19,7 @@ use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 
 use crate::output::decoded::SharedDecoder;
+use crate::output::processed::Targets;
 use crate::output::recording::Recorder;
 use crate::output::rtmp::RtmpOutput;
 use crate::output::rtsp::RtspServer;
@@ -92,9 +93,7 @@ impl Fanout {
             self.metrics.video(chunk);
             self.decoder.push(chunk);
             self.recorder.push(chunk);
-            if !self.processed.active() {
-                self.network(chunk);
-            }
+            self.network(chunk, !self.processed.taking());
         });
         true
     }
@@ -104,18 +103,26 @@ impl Fanout {
         let this = Arc::clone(self);
         self.splash.start(move |au| {
             this.decoder.push_au(au);
-            if !this.processed.active() {
-                this.network(au);
-            }
+            this.network(au, !this.processed.taking());
         });
     }
 
-    /// The streams and browsers
-    pub fn network(&self, au: &[u8]) {
-        self.rtsp.push(au);
-        self.srt.push(au);
-        self.rtmp.push(au);
-        self.udp.push(au);
-        let _ = self.web_tx.send(au.to_vec());
+    /// The streams and browsers named in `to`
+    pub fn network(&self, au: &[u8], to: Targets) {
+        if to.rtsp {
+            self.rtsp.push(au);
+        }
+        if to.srt {
+            self.srt.push(au);
+        }
+        if to.rtmp {
+            self.rtmp.push(au);
+        }
+        if to.udp {
+            self.udp.push(au);
+        }
+        if to.web {
+            let _ = self.web_tx.send(au.to_vec());
+        }
     }
 }

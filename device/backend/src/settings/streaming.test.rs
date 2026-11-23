@@ -9,6 +9,7 @@ mod rtmp {
             url: url.into(),
             key: key.into(),
             silent_audio: true,
+            processed: false,
         }
     }
 
@@ -49,6 +50,7 @@ mod udp {
             enabled: true,
             format: UdpFormat::Rtp,
             destinations: destinations.into(),
+            processed: false,
         }
     }
 

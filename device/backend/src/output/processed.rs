@@ -27,8 +27,35 @@ const AUD: [u8; 6] = [0, 0, 0, 1, 9, 0xf0];
 
 type Output = Box<dyn Fn(&[u8]) + Send + Sync>;
 
+/// Which outputs take the processed picture
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Targets {
+    pub rtsp: bool,
+    pub srt: bool,
+    pub rtmp: bool,
+    pub udp: bool,
+    pub web: bool,
+}
+
+impl Targets {
+    pub fn of(s: &crate::settings::Settings) -> Self {
+        Self {
+            rtsp: s.rtsp.processed,
+            srt: s.srt.processed,
+            rtmp: s.rtmp.processed,
+            udp: s.udp.processed,
+            web: s.viewer.processed,
+        }
+    }
+
+    pub fn any(&self) -> bool {
+        self.rtsp || self.srt || self.rtmp || self.udp || self.web
+    }
+}
+
 pub struct Processed {
     decoder: Arc<SharedDecoder>,
+    targets: Mutex<Targets>,
     running: Mutex<Option<Encoding>>,
     output: Mutex<Option<Arc<Output>>>,
     /// When the last picture came out, in ms since `epoch`
@@ -40,6 +67,7 @@ pub struct Processed {
 
 struct Encoding {
     stabilise: bool,
+    delay_ms: u16,
     pipeline: gst::Pipeline,
     subscription: Option<Subscription>,
     _steady: Option<crate::output::look::stab::Hold>,
@@ -56,6 +84,7 @@ impl Processed {
     pub fn new(decoder: Arc<SharedDecoder>) -> Arc<Self> {
         Arc::new(Self {
             decoder,
+            targets: Mutex::new(Targets::default()),
             running: Mutex::new(None),
             output: Mutex::new(None),
             last_out: Arc::new(AtomicU64::new(0)),
@@ -69,7 +98,21 @@ impl Processed {
         *self.output.lock().unwrap() = Some(Arc::new(Box::new(output)));
     }
 
-    /// Whether the network outputs should take its pictures now
+    pub fn set_targets(&self, t: Targets) {
+        *self.targets.lock().unwrap() = t;
+    }
+
+    /// The outputs that should take its pictures now: none while it isn't
+    /// producing
+    pub fn taking(&self) -> Targets {
+        if self.active() {
+            *self.targets.lock().unwrap()
+        } else {
+            Targets::default()
+        }
+    }
+
+    /// Whether it's producing
     pub fn active(&self) -> bool {
         self.running.lock().unwrap().is_some() && {
             let last = self.last_out.load(Ordering::Relaxed);
@@ -80,12 +123,16 @@ impl Processed {
 
     /// Runs or stops with the settings
     pub fn apply(self: &Arc<Self>, cfg: &DisplaySettings) {
-        let wanted = cfg.processed_streams
+        let wanted = self.targets.lock().unwrap().any()
             && (cfg.look.enabled || cfg.dewarp.enabled || cfg.stabilization.enabled)
             && self.decoder.hardware();
         let mut running = self.running.lock().unwrap();
         let same = match &*running {
-            Some(e) => wanted && e.stabilise == cfg.stabilization.enabled,
+            Some(e) => {
+                wanted
+                    && e.stabilise == cfg.stabilization.enabled
+                    && e.delay_ms == crate::output::look::delay_of(cfg)
+            }
             None => !wanted,
         };
         if same {
@@ -101,7 +148,10 @@ impl Processed {
             eprintln!("[processed] no GPU stage here");
             return;
         }
-        match self.start(cfg.stabilization.enabled) {
+        match self.start(
+            cfg.stabilization.enabled,
+            crate::output::look::delay_of(cfg),
+        ) {
             Ok(e) => {
                 println!("[processed] streams get the HDMI look, encoded again");
                 *running = Some(e);
@@ -110,7 +160,7 @@ impl Processed {
         }
     }
 
-    fn start(self: &Arc<Self>, stabilise: bool) -> Result<Encoding, String> {
+    fn start(self: &Arc<Self>, stabilise: bool, delay_ms: u16) -> Result<Encoding, String> {
         // The GPU's picture straight to the image processor, which feeds the
         // encoder; through the processor's memory when that won't take it
         let download = if self.copy.load(Ordering::Relaxed) {
@@ -118,11 +168,20 @@ impl Processed {
         } else {
             "gldownload ! video/x-raw(memory:DMABuf),format=RGBA ! v4l2convert output-io-mode=dmabuf-import"
         };
+        let mut cfg = crate::settings::DisplaySettings::default();
+        cfg.stabilization.enabled = delay_ms > 0;
+        cfg.stabilization.delay_ms = delay_ms;
+        let (format, delay) = crate::output::look::delay_stage(&cfg);
+        let own = if delay.is_empty() {
+            ""
+        } else {
+            crate::output::look::OWN_BUFFERS
+        };
         let description = format!(
             "appsrc name=src is-live=true format=time max-buffers=2 leaky-type=downstream ! \
-             v4l2convert output-io-mode=dmabuf-import ! video/x-raw,format=RGBA ! \
+             v4l2convert output-io-mode=dmabuf-import {own} ! video/x-raw,format={format} ! \
              queue max-size-buffers=2 max-size-bytes=0 max-size-time=0 leaky=downstream ! \
-             glupload ! rdlook ! {download} ! video/x-raw,format=NV12 ! \
+             glupload ! {delay}rdlook ! {download} ! video/x-raw,format=NV12 ! \
              v4l2h264enc extra-controls=\"controls,video_bitrate={BITRATE},h264_i_frame_period={KEYFRAME_EVERY},repeat_sequence_header=1\" ! \
              video/x-h264,level=(string)4,profile=(string)high ! \
              h264parse config-interval=-1 ! video/x-h264,stream-format=byte-stream,alignment=au ! \
@@ -172,7 +231,7 @@ impl Processed {
                     if let Some(this) = this.upgrade()
                         && !this.copy.swap(true, Ordering::Relaxed)
                     {
-                        std::thread::spawn(move || this.restart(stabilise));
+                        std::thread::spawn(move || this.restart(stabilise, delay_ms));
                     }
                 }
                 gst::BusSyncReply::Drop
@@ -199,6 +258,7 @@ impl Processed {
         match subscription {
             Ok(s) => Ok(Encoding {
                 stabilise,
+                delay_ms,
                 pipeline,
                 subscription: Some(s),
                 _steady: steady,
@@ -210,15 +270,29 @@ impl Processed {
         }
     }
 
-    fn restart(self: Arc<Self>, stabilise: bool) {
+    fn restart(self: Arc<Self>, stabilise: bool, delay_ms: u16) {
         let mut running = self.running.lock().unwrap();
         if running.take().is_none() {
             return;
         }
         eprintln!("[processed] trying again, copying the GPU's picture");
-        match self.start(stabilise) {
+        match self.start(stabilise, delay_ms) {
             Ok(e) => *running = Some(e),
             Err(e) => eprintln!("[processed] {e}"),
+        }
+    }
+}
+
+/// Everything the processed picture doesn't go to
+impl std::ops::Not for Targets {
+    type Output = Targets;
+    fn not(self) -> Targets {
+        Targets {
+            rtsp: !self.rtsp,
+            srt: !self.srt,
+            rtmp: !self.rtmp,
+            udp: !self.udp,
+            web: !self.web,
         }
     }
 }
