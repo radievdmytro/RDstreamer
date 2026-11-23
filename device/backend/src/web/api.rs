@@ -72,7 +72,9 @@ pub fn router<S>(services: Services) -> Router<S> {
     let public = Router::new()
         .route("/auth", get(access::auth_status))
         .route("/auth/login", post(access::login))
-        .route("/auth/logout", post(access::logout));
+        .route("/auth/logout", post(access::logout))
+        // The browsers that grade the picture themselves need the LUT
+        .route("/display/look/atlas", get(display::look_atlas));
 
     Router::new()
         .route("/auth/password", put(access::set_password))
@@ -171,7 +173,6 @@ pub fn router<S>(services: Services) -> Router<S> {
             axum::routing::delete(display::look_remove),
         )
         .route("/display/look/download", post(display::look_download))
-        .route("/display/look/atlas", get(display::look_atlas))
         .route("/input", get(streaming::input_status))
         .route("/input/devices", get(streaming::input_devices))
         .route("/input/toggle", post(input::toggle))

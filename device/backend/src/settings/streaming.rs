@@ -339,6 +339,18 @@ pub struct ViewerSettings {
     /// Browsers see the HDMI look (on by default: viewers want the finished
     /// picture; the streams keep the flat one for grading elsewhere)
     pub processed: bool,
+    /// Where that look is made for browsers
+    pub grade_in: GradeIn,
+}
+
+/// The browser's own GPU spares the Pi a second encoder; only the Pi can
+/// stabilise
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum GradeIn {
+    #[default]
+    Browser,
+    Pi,
 }
 
 impl Default for ViewerSettings {
@@ -348,6 +360,7 @@ impl Default for ViewerSettings {
             max_viewers: 0,
             quality: ViewerQuality::default(),
             processed: true,
+            grade_in: GradeIn::Browser,
         }
     }
 }

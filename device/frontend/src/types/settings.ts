@@ -120,6 +120,8 @@ export interface Settings {
     quality: ViewerQuality;
     /** With the HDMI look (LUT, dewarp, stabilisation) rather than the goggles' own picture */
     processed: boolean;
+    /** Where that look is made: each browser's GPU, or the Pi (which can also stabilise) */
+    grade_in: "browser" | "pi";
   };
   display: {
     hdmi_output: boolean;

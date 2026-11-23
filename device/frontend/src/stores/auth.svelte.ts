@@ -1,5 +1,5 @@
 import { api, message, setUnauthorizedHandler } from "@/api/client";
-import type { Access } from "@/types/auth";
+import type { Access, Grading } from "@/types/auth";
 import type { ViewerQuality, ViewerTransport } from "@/types/settings";
 
 const RETRY_MS = 3000;
@@ -12,6 +12,8 @@ class AuthStore {
   access = $state<Access>("none");
   transport = $state<ViewerTransport>("websocket");
   quality = $state<ViewerQuality>("auto");
+  /** Set when browsers grade the picture themselves */
+  grading = $state<Grading | null>(null);
 
   admin = $derived(this.access === "admin");
   canView = $derived(this.access !== "none");
@@ -38,6 +40,7 @@ class AuthStore {
       this.access = s.access;
       this.transport = s.transport;
       this.quality = s.quality ?? "auto";
+      this.grading = s.grading ?? null;
       this.loaded = true;
       this.unreachable = null;
     } catch (e) {

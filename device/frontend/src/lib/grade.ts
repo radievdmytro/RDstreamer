@@ -176,7 +176,11 @@ export class Grader {
   }
 
   /** One frame of `video` through the look; false while it has no picture */
-  draw(video: HTMLVideoElement, display: Display, split: number): boolean {
+  draw(
+    video: HTMLVideoElement,
+    display: Pick<Display, "look" | "dewarp">,
+    split: number,
+  ): boolean {
     if (video.readyState < 2 || !video.videoWidth) return false;
     const gl = this.#gl;
     const canvas = gl.canvas as HTMLCanvasElement;

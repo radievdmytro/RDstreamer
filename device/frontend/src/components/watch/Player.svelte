@@ -144,6 +144,11 @@
   );
   // The image preview grades the picture itself: it asks for the goggles'
   // own, not the processed one browsers may get
+  // The look drawn here: the image preview's, or the Pi's when browsers
+  // grade the picture themselves
+  const look = $derived(
+    graded ?? (auth.grading ? { display: auth.grading, split: 0 } : null),
+  );
   const query = $derived(
     graded
       ? `?source=original${light ? "&quality=light" : ""}`
@@ -480,11 +485,11 @@
       class="h-full w-full object-contain"
     ></video>
 
-    {#if graded}
+    {#if look}
       <GradedView
         video={() => videoEl}
-        display={graded.display}
-        split={graded.split}
+        display={look.display}
+        split={look.split}
       />
     {/if}
 

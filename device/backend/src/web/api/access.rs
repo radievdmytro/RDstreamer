@@ -18,6 +18,14 @@ pub(super) struct AuthStatus {
     /// How to fetch the video: viewers can't read the settings for it
     transport: crate::settings::ViewerTransport,
     quality: crate::settings::ViewerQuality,
+    /// The look for the browser to apply itself, when that's where it's made
+    grading: Option<Grading>,
+}
+
+#[derive(Serialize)]
+pub(super) struct Grading {
+    look: crate::settings::LookSettings,
+    dewarp: crate::settings::DewarpSettings,
 }
 
 pub(super) async fn auth_status(
@@ -30,6 +38,16 @@ pub(super) async fn auth_status(
         access: sv.auth.access(&headers),
         transport: sv.store.get().viewer.transport,
         quality: sv.store.get().viewer.quality,
+        grading: {
+            let s = sv.store.get();
+            (s.viewer.processed
+                && s.viewer.grade_in == crate::settings::GradeIn::Browser
+                && (s.display.look.enabled || s.display.dewarp.enabled))
+                .then(|| Grading {
+                    look: s.display.look.clone(),
+                    dewarp: s.display.dewarp.clone(),
+                })
+        },
     })
 }
 

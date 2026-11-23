@@ -10,7 +10,7 @@
   }: {
     /** The player's video element, once there is one */
     video: () => HTMLVideoElement | undefined;
-    display: Settings["display"];
+    display: Pick<Settings["display"], "look" | "dewarp">;
     /** 0 graded throughout, 0.5 half and half, 1 not graded */
     split: number;
   } = $props();

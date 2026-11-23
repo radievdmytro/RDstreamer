@@ -1,4 +1,8 @@
-import type { ViewerQuality, ViewerTransport } from "@/types/settings";
+import type {
+  Settings,
+  ViewerQuality,
+  ViewerTransport,
+} from "@/types/settings";
 
 export type Access = "none" | "viewer" | "admin";
 
@@ -8,4 +12,8 @@ export interface AuthStatus {
   access: Access;
   transport: ViewerTransport;
   quality: ViewerQuality;
+  /** The look for this browser to apply itself, when that's where it's made */
+  grading: Grading | null;
 }
+
+export type Grading = Pick<Settings["display"], "look" | "dewarp">;
