@@ -463,6 +463,32 @@ fn video_area(screen: (u32, u32), video: (u32, u32), scaling: Scaling) -> Rect {
     }
 }
 
+/// With skip-vsync, kmssink hands a picture back as soon as the next one is
+/// queued, while the screen may still be scanning it out. The decoder's
+/// pictures come from a deep pool and are long gone by the time one is
+/// reused; the GPU's few go straight back and it drew the next frame into
+/// the one still on screen: moving things doubled and frames seemed to jump
+/// ahead. Holding on to the last few shown keeps the GPU off them until the
+/// screen is surely done
+fn hold_shown_pictures(sink: &gst::Element) {
+    const HOLD: usize = 3;
+    let held = Mutex::new(std::collections::VecDeque::<gst::Buffer>::with_capacity(
+        HOLD + 1,
+    ));
+    if let Some(pad) = sink.static_pad("sink") {
+        pad.add_probe(gst::PadProbeType::BUFFER, move |_, info| {
+            if let Some(gst::PadProbeData::Buffer(buffer)) = &info.data {
+                let mut held = held.lock().unwrap();
+                held.push_back(buffer.clone());
+                while held.len() > HOLD {
+                    held.pop_front();
+                }
+            }
+            gst::PadProbeReturn::Ok
+        });
+    }
+}
+
 /// Tells a frozen screen from one with no video: pictures fed but none shown
 /// for a few seconds in a row
 #[derive(Default)]
@@ -541,6 +567,9 @@ fn build(
 
     let sink = pipeline.by_name("sink").expect("Failed to find kmssink");
     sink.set_property("fd", fd);
+    if look {
+        hold_shown_pictures(&sink);
+    }
     // Always set, or the plane keeps the last pipeline's rotation
     sink.set_property(
         "plane-properties",
