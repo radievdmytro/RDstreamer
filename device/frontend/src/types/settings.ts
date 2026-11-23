@@ -40,7 +40,14 @@ export interface Settings {
   wifi: {
     mode: WifiMode;
     client: { ssid: string; password: string };
-    ap: { ssid: string; password: string; channel: number; address: string };
+    ap: {
+      ssid: string;
+      password: string;
+      channel: number;
+      address: string;
+      /** Phones that join open the viewer by themselves */
+      open_viewer: boolean;
+    };
     fallback_ap: boolean;
     /** Two-letter code; empty leaves the radio's rules to the system */
     country: string;
@@ -141,6 +148,8 @@ export interface Settings {
     status_over_image: boolean;
     image_scaling: "fit" | "fill";
     show_ap_password: boolean;
+    /** Play the uploaded background video behind the status */
+    background_video: boolean;
   };
   overlay: {
     enabled: boolean;
@@ -291,7 +300,20 @@ export type Section = keyof Settings;
 
 export interface SplashStatus {
   custom_image: boolean;
+  video: SplashVideo;
 }
+
+export type SplashVideo =
+  | { state: "none" }
+  | { state: "converting"; seconds: number }
+  | {
+      state: "ready";
+      width: number;
+      height: number;
+      fps: number;
+      converted: boolean;
+    }
+  | { state: "failed"; error: string };
 
 export interface Saved {
   settings: Settings;

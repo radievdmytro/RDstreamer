@@ -2,6 +2,7 @@
   import type { Settings } from "@/types/settings";
   import HdmiCard from "@/components/display/HdmiCard.svelte";
   import SplashCard from "@/components/display/SplashCard.svelte";
+  import SplashVideoCard from "@/components/display/SplashVideoCard.svelte";
   import OverlayCard from "@/components/display/OverlayCard.svelte";
   import LookCard from "@/components/display/LookCard.svelte";
   import DewarpCard from "@/components/display/DewarpCard.svelte";
@@ -24,6 +25,7 @@
     <HdmiCard bind:display />
   {:else if tab === "splash"}
     <SplashCard bind:splash />
+    <SplashVideoCard bind:splash />
   {:else if tab === "logo"}
     <OverlayCard bind:overlay />
   {:else if tab === "image"}

@@ -361,6 +361,22 @@ impl GstPlayer {
         let Some(display) = display.as_mut() else {
             return;
         };
+        // The splash screen's status over its background video
+        match overlay::status_layer() {
+            Some((layer, version)) if running.is_some() => {
+                if display.status_version() != Some(version) {
+                    let rotation = plane_rotation(cfg) as u64;
+                    if let Err(e) = display.show_status(&layer, version, rotation) {
+                        eprintln!("[hdmi] {e}");
+                    }
+                }
+            }
+            _ => {
+                if display.status_version().is_some() {
+                    display.hide_status();
+                }
+            }
+        }
         let target = (|| {
             // Already in the picture: drawing it again would double it
             if self.overlay.burned() {

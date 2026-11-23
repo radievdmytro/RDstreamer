@@ -40,6 +40,7 @@ pub(super) async fn display_status(State(sv): State<Services>) -> Json<DisplaySt
 #[derive(Serialize)]
 pub(super) struct SplashStatus {
     custom_image: bool,
+    video: crate::output::splash::video::VideoState,
 }
 
 #[derive(Serialize)]
@@ -87,6 +88,7 @@ pub(super) async fn overlay_remove(State(sv): State<Services>) -> Result<StatusC
 pub(super) async fn splash_status(State(sv): State<Services>) -> Json<SplashStatus> {
     Json(SplashStatus {
         custom_image: sv.splash.has_custom_image(),
+        video: sv.splash.video_state(),
     })
 }
 
@@ -126,6 +128,29 @@ pub(super) async fn splash_upload(
         .await
         .map_err(|e| failed(e.to_string()))?
         .map_err(|e| bad(format!("Couldn't use that image: {e}")))?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub(super) async fn splash_video_upload(
+    State(sv): State<Services>,
+    video: axum::body::Bytes,
+) -> Result<StatusCode, ApiError> {
+    if video.is_empty() {
+        return Err(bad("That file is empty"));
+    }
+    tokio::task::spawn_blocking(move || sv.splash.set_video(&video))
+        .await
+        .map_err(|e| failed(e.to_string()))?
+        .map_err(|e| failed(format!("Couldn't store the video: {e}")))?;
+    Ok(StatusCode::ACCEPTED)
+}
+
+pub(super) async fn splash_video_remove(
+    State(sv): State<Services>,
+) -> Result<StatusCode, ApiError> {
+    sv.splash
+        .remove_video()
+        .map_err(|e| failed(format!("Couldn't remove the video: {e}")))?;
     Ok(StatusCode::NO_CONTENT)
 }
 

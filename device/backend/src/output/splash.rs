@@ -19,6 +19,7 @@ use crate::settings::Scaling;
 use crate::settings::SettingsStore;
 
 mod screen;
+pub mod video;
 
 /// Silence longer than this means the goggles stopped sending
 const VIDEO_TIMEOUT: Duration = Duration::from_secs(1);
@@ -44,6 +45,9 @@ pub struct Splash {
     feed: Mutex<Feed>,
     custom: Mutex<Option<Custom>>,
     status: Mutex<Option<screen::Screen>>,
+    /// The background video, and how far along it is
+    video: Mutex<video::VideoState>,
+    converting_since: Mutex<Option<Instant>>,
 }
 
 struct Custom {
@@ -82,6 +86,8 @@ impl Splash {
             }),
             custom: Mutex::new(None),
             status: Mutex::new(None),
+            video: Mutex::new(video::VideoState::None),
+            converting_since: Mutex::new(None),
         })
     }
 
@@ -116,6 +122,83 @@ impl Splash {
             feed.gop = Vec::new();
         }
         push();
+    }
+
+    /// The background video: none, being made ready, ready or failed
+    pub fn video_state(&self) -> video::VideoState {
+        match &*self.video.lock().unwrap() {
+            video::VideoState::Converting { .. } => video::VideoState::Converting {
+                seconds: self
+                    .converting_since
+                    .lock()
+                    .unwrap()
+                    .map_or(0, |t| t.elapsed().as_secs()),
+            },
+            other => other.clone(),
+        }
+    }
+
+    /// Keeps the upload and makes it playable in the background: a video
+    /// the Pi decodes as it is takes seconds, a 4K or non-H.264 one minutes
+    pub fn set_video(self: &Arc<Self>, upload: &[u8]) -> std::io::Result<()> {
+        let incoming = self.video_path().with_extension("upload");
+        fs::write(&incoming, upload)?;
+        *self.video.lock().unwrap() = video::VideoState::Converting { seconds: 0 };
+        *self.converting_since.lock().unwrap() = Some(Instant::now());
+        let this = Arc::clone(self);
+        thread::spawn(move || {
+            println!("[splash] preparing the background video");
+            let result = video::convert(&incoming, &this.video_path());
+            let _ = fs::remove_file(&incoming);
+            *this.converting_since.lock().unwrap() = None;
+            *this.video.lock().unwrap() = match result {
+                Ok(info) => {
+                    println!(
+                        "[splash] background video ready: {}x{} at {:.0} fps{}",
+                        info.width,
+                        info.height,
+                        info.fps,
+                        if info.converted { ", converted" } else { "" }
+                    );
+                    if let Ok(json) = serde_json::to_string(&info) {
+                        let _ = fs::write(this.video_path().with_extension("json"), json);
+                    }
+                    video::VideoState::Ready(info)
+                }
+                Err(error) => {
+                    eprintln!("[splash] background video: {error}");
+                    video::VideoState::Failed { error }
+                }
+            };
+        });
+        Ok(())
+    }
+
+    pub fn remove_video(&self) -> std::io::Result<()> {
+        for path in [self.video_path(), self.video_path().with_extension("json")] {
+            match fs::remove_file(path) {
+                Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e),
+                _ => {}
+            }
+        }
+        *self.video.lock().unwrap() = video::VideoState::None;
+        println!("[splash] background video removed");
+        Ok(())
+    }
+
+    fn load_video(&self) {
+        let info = fs::read_to_string(self.video_path().with_extension("json"))
+            .ok()
+            .and_then(|j| serde_json::from_str::<video::ClipInfo>(&j).ok());
+        if let Some(info) = info
+            && self.video_path().exists()
+        {
+            *self.video.lock().unwrap() = video::VideoState::Ready(info);
+        }
+    }
+
+    fn video_path(&self) -> PathBuf {
+        self.store.path().with_file_name("splash-video.h264")
     }
 
     pub fn has_custom_image(&self) -> bool {
@@ -238,7 +321,10 @@ impl Splash {
             .expect("Failed to build splash runtime");
 
         self.load_custom_image();
+        self.load_video();
 
+        let mut player: Option<video::Player> = None;
+        let mut layer_svg = String::new();
         let mut screen = Frames::new();
         let mut screen_svg = String::new();
         let mut over_image = Frames::new();
@@ -250,7 +336,18 @@ impl Splash {
         let mut next = 0;
 
         loop {
-            thread::sleep(FRAME_INTERVAL);
+            // The video plays on in the background; otherwise a still
+            // picture goes out every so often
+            match player.as_mut() {
+                Some(p) => {
+                    if let Err(e) = p.play_for(FRAME_INTERVAL, &push) {
+                        eprintln!("[splash] background video: {e}");
+                        player = None;
+                        *self.video.lock().unwrap() = video::VideoState::Failed { error: e };
+                    }
+                }
+                None => thread::sleep(FRAME_INTERVAL),
+            }
 
             let cfg = self.store.get().splash;
             let rescale = self
@@ -347,6 +444,10 @@ impl Splash {
             if feed.live.is_some() {
                 frozen = None;
                 crate::output::look::SPLASH.store(false, std::sync::atomic::Ordering::Relaxed);
+                if player.take().is_some() {
+                    crate::output::overlay::set_status_layer(None);
+                    layer_svg.clear();
+                }
                 continue;
             }
             let custom = self.custom.lock().unwrap();
@@ -356,6 +457,42 @@ impl Splash {
             let goggles_picture = frozen.is_some() && cfg.freeze_last_frame;
             crate::output::look::SPLASH
                 .store(!goggles_picture, std::sync::atomic::Ordering::Relaxed);
+
+            // The background video, with the status band drawn over it on
+            // HDMI's own plane
+            let clip = match &*self.video.lock().unwrap() {
+                video::VideoState::Ready(info) if cfg.background_video && !goggles_picture => {
+                    Some(info.fps)
+                }
+                _ => None,
+            };
+            match clip {
+                Some(fps) => {
+                    if player.is_none() {
+                        println!("[splash] playing the background video");
+                        player = Some(video::Player::new(self.video_path(), fps));
+                    }
+                    if let Some(status) = &*self.status.lock().unwrap() {
+                        let svg = status.over_video();
+                        if svg != layer_svg {
+                            match svg_to_layer(&svg) {
+                                Ok(layer) => {
+                                    crate::output::overlay::set_status_layer(Some(Arc::new(layer)))
+                                }
+                                Err(e) => eprintln!("[splash] status over video: {e}"),
+                            }
+                            layer_svg = svg;
+                        }
+                    }
+                    continue;
+                }
+                None => {
+                    if player.take().is_some() {
+                        crate::output::overlay::set_status_layer(None);
+                        layer_svg.clear();
+                    }
+                }
+            }
             let frames = match (&frozen, &*custom) {
                 (Some(frozen), _) if cfg.freeze_last_frame => frozen,
                 (_, Some(_)) if !over_image.is_empty() => &over_image,
@@ -507,6 +644,41 @@ fn encode(decode: &str, input: gst::Buffer, caps: Option<&gst::CapsRef>) -> anyh
         anyhow::bail!("encoder produced no frames");
     }
     Ok(frames)
+}
+
+/// The status band as straight-alpha BGRA, for a display plane
+fn svg_to_layer(svg: &str) -> anyhow::Result<crate::output::overlay::Logo> {
+    let caps = gst::Caps::new_empty_simple("image/svg+xml");
+    let mut layer = None;
+    process(
+        "appsrc name=src ! rsvgdec ! videoconvert ! video/x-raw,format=BGRA ! appsink name=sink sync=false",
+        gst::Buffer::from_slice(svg.as_bytes().to_vec()),
+        Some(&caps),
+        |sample| {
+            let size = sample.caps().and_then(|c| {
+                let s = c.structure(0)?;
+                Some((s.get::<i32>("width").ok()?, s.get::<i32>("height").ok()?))
+            });
+            if let (Some((w, h)), Some(buffer)) = (size, sample.buffer())
+                && let Ok(map) = buffer.map_readable()
+            {
+                let (w, h) = (w.max(0) as u32, h.max(0) as u32);
+                let row = w as usize * 4;
+                // Rows may be padded; the plane wants them packed
+                let stride = map.len() / h.max(1) as usize;
+                let mut bgra = Vec::with_capacity(row * h as usize);
+                for y in 0..h as usize {
+                    bgra.extend_from_slice(&map[y * stride..y * stride + row]);
+                }
+                layer = Some(crate::output::overlay::Logo {
+                    width: w,
+                    height: h,
+                    bgra,
+                });
+            }
+        },
+    )?;
+    layer.ok_or_else(|| anyhow::anyhow!("nothing rendered"))
 }
 
 fn svg_to_png(svg: &str) -> anyhow::Result<Vec<u8>> {

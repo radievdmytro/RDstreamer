@@ -317,26 +317,38 @@ impl Network {
         };
         let has = |name: &str| out.lines().any(|l| l == name);
 
-        match s.wifi.mode {
-            WifiMode::Ap => {
-                let this = Arc::clone(self);
-                tokio::spawn(async move {
-                    // Give NetworkManager's own autoconnect a chance at boot
-                    for _ in 0..2 {
-                        if ap_active().await {
-                            return;
+        // Devices updated from a version without it: the access point's DNS
+        // learns the internet check names once, by starting it again
+        let portal = crate::web::portal::DNSMASQ_CONF;
+        let wanted = crate::web::portal::dnsmasq_conf(&s.wifi.ap.address);
+        if s.wifi.mode == WifiMode::Ap
+            && s.wifi.ap.open_viewer
+            && std::fs::read_to_string(portal).ok().as_deref() != Some(wanted.as_str())
+        {
+            eprintln!("[net] setting up opening the viewer on join");
+            self.apply_later(s.wifi.clone());
+        } else {
+            match s.wifi.mode {
+                WifiMode::Ap => {
+                    let this = Arc::clone(self);
+                    tokio::spawn(async move {
+                        // Give NetworkManager's own autoconnect a chance at boot
+                        for _ in 0..2 {
+                            if ap_active().await {
+                                return;
+                            }
+                            tokio::time::sleep(AP_START_GRACE).await;
                         }
-                        tokio::time::sleep(AP_START_GRACE).await;
-                    }
-                    eprintln!("[net] access point should be on but isn't, starting it");
-                    this.apply_later(s.wifi);
-                });
+                        eprintln!("[net] access point should be on but isn't, starting it");
+                        this.apply_later(s.wifi);
+                    });
+                }
+                WifiMode::Client if !has(CLIENT_CON) => {
+                    eprintln!("[net] setting up WiFi for the first time");
+                    self.apply_later(s.wifi.clone());
+                }
+                _ => {}
             }
-            WifiMode::Client if !has(CLIENT_CON) => {
-                eprintln!("[net] setting up WiFi for the first time");
-                self.apply_later(s.wifi.clone());
-            }
-            _ => {}
         }
 
         if s.wifi2.enabled && !has(WIFI2_CON) {
@@ -491,6 +503,18 @@ impl Network {
 
 async fn write_ap_profile(cfg: &WifiSettings, autoconnect: bool) -> Result<(), String> {
     delete_con(AP_CON).await;
+    // Read by the access point's DNS when it starts
+    let portal = std::path::Path::new(crate::web::portal::DNSMASQ_CONF);
+    if cfg.ap.open_viewer {
+        if let Some(dir) = portal.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        if let Err(e) = std::fs::write(portal, crate::web::portal::dnsmasq_conf(&cfg.ap.address)) {
+            eprintln!("[net] couldn't set up opening the viewer on join: {e}");
+        }
+    } else {
+        let _ = std::fs::remove_file(portal);
+    }
     let channel = cfg.ap.channel.to_string();
     let address = format!("{}/24", cfg.ap.address);
     let autoconnect = if autoconnect { "yes" } else { "no" };

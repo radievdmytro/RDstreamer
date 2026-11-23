@@ -181,6 +181,8 @@ pub struct SplashSettings {
     pub status_over_image: bool,
     pub image_scaling: Scaling,
     pub show_ap_password: bool,
+    /// Play the uploaded background video behind the status
+    pub background_video: bool,
 }
 
 impl Default for SplashSettings {
@@ -191,6 +193,7 @@ impl Default for SplashSettings {
             status_over_image: true,
             image_scaling: Scaling::Fit,
             show_ap_password: true,
+            background_video: true,
         }
     }
 }

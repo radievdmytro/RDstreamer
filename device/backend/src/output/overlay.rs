@@ -15,6 +15,20 @@ const PNG_MAGIC: &[u8] = b"\x89PNG\r\n\x1a\n";
 const MAX_SIDE: u32 = 2048;
 const DECODE_TIMEOUT: Duration = Duration::from_secs(10);
 
+/// The splash screen's status band while a video plays behind it, with a
+/// version that changes with it; HDMI shows it on a plane of its own
+static STATUS_LAYER: RwLock<Option<(Arc<Logo>, u64)>> = RwLock::new(None);
+static STATUS_VERSION: AtomicU64 = AtomicU64::new(0);
+
+pub fn set_status_layer(layer: Option<Arc<Logo>>) {
+    let version = STATUS_VERSION.fetch_add(1, Ordering::Relaxed) + 1;
+    *STATUS_LAYER.write().unwrap() = layer.map(|l| (l, version));
+}
+
+pub fn status_layer() -> Option<(Arc<Logo>, u64)> {
+    STATUS_LAYER.read().unwrap().clone()
+}
+
 pub struct Logo {
     pub width: u32,
     pub height: u32,

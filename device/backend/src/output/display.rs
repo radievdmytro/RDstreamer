@@ -64,6 +64,14 @@ pub struct Display {
     current: Option<ModeInfo>,
     background: Option<(framebuffer::Handle, DumbBuffer)>,
     logo: Option<LogoPlane>,
+    /// The splash screen's status over a background video
+    status: Option<LogoPlane>,
+}
+
+#[derive(Clone, Copy)]
+enum Layer {
+    Logo,
+    Status,
 }
 
 impl Display {
@@ -129,6 +137,7 @@ impl Display {
                     current,
                     background: None,
                     logo: None,
+                    status: None,
                 }));
             }
         }
@@ -245,46 +254,116 @@ impl Display {
         opacity_percent: u8,
         rotation: u64,
     ) -> Result<(), String> {
-        if self.logo.as_ref().is_some_and(|l| l.version != version) {
-            self.hide_logo();
+        self.show_layer(
+            Layer::Logo,
+            logo,
+            version,
+            at,
+            opacity_percent,
+            rotation,
+            LOGO_ZPOS,
+        )
+    }
+
+    pub fn hide_logo(&mut self) {
+        self.hide_layer(Layer::Logo);
+    }
+
+    /// The splash screen's status band, over the whole screen, below the logo
+    pub fn show_status(&mut self, layer: &Logo, version: u64, rotation: u64) -> Result<(), String> {
+        let Some(mode) = self.current.clone() else {
+            return Ok(());
+        };
+        let at = Rect {
+            x: 0,
+            y: 0,
+            w: mode.width as u32,
+            h: mode.height as u32,
+        };
+        self.show_layer(
+            Layer::Status,
+            layer,
+            version,
+            at,
+            100,
+            rotation,
+            LOGO_ZPOS - 1,
+        )
+    }
+
+    pub fn hide_status(&mut self) {
+        self.hide_layer(Layer::Status);
+    }
+
+    pub fn status_version(&self) -> Option<u64> {
+        self.status.as_ref().map(|l| l.version)
+    }
+
+    fn slot(&mut self, which: Layer) -> &mut Option<LogoPlane> {
+        match which {
+            Layer::Logo => &mut self.logo,
+            Layer::Status => &mut self.status,
         }
-        if self.logo.is_none() {
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn show_layer(
+        &mut self,
+        which: Layer,
+        image: &Logo,
+        version: u64,
+        at: Rect,
+        opacity_percent: u8,
+        rotation: u64,
+        zpos: u64,
+    ) -> Result<(), String> {
+        if self
+            .slot(which)
+            .as_ref()
+            .is_some_and(|l| l.version != version)
+        {
+            self.hide_layer(which);
+        }
+        if self.slot(which).is_none() {
             let plane = self.free_overlay_plane()?;
-            let (fb, buffer) = self.upload(logo)?;
-            self.logo = Some(LogoPlane {
+            let (fb, buffer) = self.upload(image)?;
+            *self.slot(which) = Some(LogoPlane {
                 plane,
                 fb,
                 buffer,
                 version,
-                size: (logo.width, logo.height),
+                size: (image.width, image.height),
             });
         }
-        let l = self.logo.as_ref().expect("set above");
+        let (plane, fb, size) = {
+            let l = self.slot(which).as_ref().expect("set above");
+            (l.plane, l.fb, l.size)
+        };
         let alpha = ALPHA_OPAQUE * opacity_percent.min(100) as u64 / 100;
         for (name, value) in [
-            ("zpos", LOGO_ZPOS),
+            ("zpos", zpos),
             ("pixel blend mode", BLEND_COVERAGE),
             ("alpha", alpha),
             ("rotation", rotation),
         ] {
-            // Best effort: a driver without one of these still shows the logo
-            let _ = self.set_plane_property(l.plane, name, value);
+            // Best effort: a driver without one of these still shows it
+            let _ = self.set_plane_property(plane, name, value);
         }
         self.card
             .set_plane(
-                l.plane,
+                plane,
                 self.crtc,
-                Some(l.fb),
+                Some(fb),
                 0,
                 (at.x, at.y, at.w, at.h),
                 // Source rectangle in 16.16 fixed point: the whole image
-                (0, 0, l.size.0 << 16, l.size.1 << 16),
+                (0, 0, size.0 << 16, size.1 << 16),
             )
-            .map_err(|e| format!("Couldn't place the logo: {e}"))
+            .map_err(|e| format!("Couldn't place an overlay: {e}"))
     }
 
-    pub fn hide_logo(&mut self) {
-        if let Some(l) = self.logo.take() {
+    fn hide_layer(&mut self, which: Layer) {
+        if let Some(l) = self.slot(which).take() {
             let _ = self
                 .card
                 .set_plane(l.plane, self.crtc, None, 0, (0, 0, 0, 0), (0, 0, 0, 0));
@@ -339,7 +418,7 @@ impl Display {
                     && info.formats().contains(&(DrmFourcc::Argb8888 as u32))
                     && self.plane_property(p, "type") == Some(PLANE_TYPE_OVERLAY)
             })
-            .ok_or_else(|| "No free display plane for the logo".to_string())
+            .ok_or_else(|| "No free display plane for an overlay".to_string())
     }
 
     fn find_property(

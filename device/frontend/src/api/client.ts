@@ -226,6 +226,7 @@ export const api = {
   splash: () => request<SplashStatus>("GET", "/splash"),
   uploadSplash: (image: Blob) => request<void>("PUT", "/splash/image", image),
   removeSplash: () => request<void>("DELETE", "/splash/image"),
+  removeSplashVideo: () => request<void>("DELETE", "/splash/video"),
   /** What shows while there's no video; `v` busts the browser cache */
   splashPreviewUrl: (
     v: number,

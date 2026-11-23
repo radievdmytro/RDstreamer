@@ -75,6 +75,8 @@ pub struct WifiApSettings {
     pub channel: u8,
     /// Address of the device on the AP network (/24; clients get DHCP)
     pub address: String,
+    /// Phones that join open the viewer by themselves, as a sign-in page
+    pub open_viewer: bool,
 }
 
 impl Default for WifiApSettings {
@@ -84,6 +86,7 @@ impl Default for WifiApSettings {
             password: "RDstreamer".into(),
             channel: 6,
             address: "10.0.0.1".into(),
+            open_viewer: true,
         }
     }
 }

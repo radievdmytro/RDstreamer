@@ -189,6 +189,13 @@ pub fn router<S>(services: Services) -> Router<S> {
         .route("/splash", get(display::splash_status))
         .route("/splash/preview", get(display::splash_preview))
         .route(
+            "/splash/video",
+            put(display::splash_video_upload)
+                .delete(display::splash_video_remove)
+                // A short loop; longer or 4K ones are best shortened first
+                .layer(DefaultBodyLimit::max(400 << 20)),
+        )
+        .route(
             "/splash/image",
             put(display::splash_upload)
                 .delete(display::splash_remove)

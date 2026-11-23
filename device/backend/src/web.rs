@@ -2,6 +2,7 @@ pub mod api;
 pub mod auth;
 mod control;
 mod light;
+pub mod portal;
 mod rtc;
 pub mod terminal;
 mod ui;
@@ -211,6 +212,7 @@ pub fn start(
                     Arc::clone(&services.auth),
                     crate::web::auth::viewers_only,
                 ));
+            let services_store = Arc::clone(&services.store);
             let app = Router::new()
                 .route("/health", get(health))
                 .route("/time", get(time))
@@ -219,14 +221,23 @@ pub fn start(
                 .fallback_service(
                     get(ui::serve).layer(tower_http::compression::CompressionLayer::new()),
                 )
-                .with_state(state);
+                .with_state(state)
+                .layer(axum::middleware::from_fn_with_state(
+                    Arc::clone(&services_store),
+                    portal::middleware,
+                ));
 
             eprintln!(
                 "[web] listening on http://{}",
                 listener.local_addr().unwrap()
             );
             let listener = tokio::net::TcpListener::from_std(listener).unwrap();
-            axum::serve(listener, app).await.unwrap();
+            axum::serve(
+                listener,
+                app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+            )
+            .await
+            .unwrap();
         });
     });
 }

@@ -297,15 +297,35 @@ impl Screen {
     /// The same information as `svg`, as a band along the bottom of
     /// someone's own picture
     pub fn over_image(&self, image: &str, scaling: Scaling) -> String {
+        self.band(Some((image, scaling)))
+    }
+
+    /// The same band of status and login details, over nothing: drawn on
+    /// its own display plane above a video playing behind it
+    pub fn over_video(&self) -> String {
+        self.band(None)
+    }
+
+    fn band(&self, image: Option<(&str, Scaling)>) -> String {
         const DETAIL_STEP: u32 = 32;
         const COLUMN_MAX: u32 = 520;
         const MARGIN: u32 = 64;
 
         let cx = WIDTH / 2;
         let (tone, status) = self.status();
-        let aspect = match scaling {
-            Scaling::Fit => "xMidYMid meet",
-            Scaling::Fill => "xMidYMid slice",
+        let background = match image {
+            Some((image, scaling)) => {
+                let aspect = match scaling {
+                    Scaling::Fit => "xMidYMid meet",
+                    Scaling::Fill => "xMidYMid slice",
+                };
+                format!(
+                    r#"<rect width="100%" height="100%" fill="black"/>
+<image width="{WIDTH}" height="{HEIGHT}" preserveAspectRatio="{aspect}" href="{image}"/>
+"#
+                )
+            }
+            None => String::new(),
         };
         let notice_h = if self.notice.is_some() { 36 } else { 0 };
         let details = self
@@ -321,9 +341,7 @@ impl Screen {
         let _ = write!(
             s,
             r#"<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{HEIGHT}" viewBox="0 0 {WIDTH} {HEIGHT}">
-<rect width="100%" height="100%" fill="black"/>
-<image width="{WIDTH}" height="{HEIGHT}" preserveAspectRatio="{aspect}" href="{image}"/>
-<rect y="{top}" width="{WIDTH}" height="{band_h}" fill="{BASE}" fill-opacity="0.78"/>
+{background}<rect y="{top}" width="{WIDTH}" height="{band_h}" fill="{BASE}" fill-opacity="0.78"/>
 <text x="{cx}" y="{status_y}" text-anchor="middle" font-family="{SANS}" font-size="28" fill="{tone}">{status}</text>
 "#,
             status_y = top + 48,
