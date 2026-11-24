@@ -18,6 +18,10 @@ on:
         description: Delete this release and its tag instead
         type: boolean
         default: false
+      changelog:
+        description: Write each release's description from CHANGELOG.md (tag "all" for every release)
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -32,7 +36,43 @@ jobs:
       TITLE: ${{ inputs.title }}
       NOTES: ${{ inputs.notes }}
     steps:
+      - uses: actions/checkout@v4
+        if: inputs.changelog
+      - name: Descriptions from the changelog
+        if: inputs.changelog
+        run: |
+          python3 - <<'PY'
+          import json, os, re, subprocess
+          repo, tag = os.environ["REPO"], os.environ["TAG"]
+          text = open("CHANGELOG.md", encoding="utf-8").read()
+          # "## 1.22 · ..." → the lines up to the next heading
+          sections = {}
+          for m in re.finditer(r"^## (\d+\.\d+)[^\n]*\n(.*?)(?=^## |\Z)", text, re.M | re.S):
+              sections[m.group(1)] = m.group(2).strip()
+          releases = json.loads(subprocess.check_output(
+              ["gh", "api", f"repos/{repo}/releases?per_page=100"]))
+          footer = ("\n\n---\n\nWrite the `.img.xz` to a microSD card with Raspberry Pi "
+                    "Imager (**Use custom**), or update from **System → Updates**: devices "
+                    "with RDstreamer 1.3 or newer find and install signed releases by "
+                    "themselves. All versions: [CHANGELOG.md]"
+                    f"(https://github.com/{repo}/blob/main/CHANGELOG.md).")
+          for r in releases:
+              if tag != "all" and r["tag_name"] != tag:
+                  continue
+              m = re.match(r"rd-(\d+\.\d+)-\d+$", r["tag_name"])
+              version = m.group(1) if m else None
+              if r["tag_name"] == "rd-0.1.0-rd.20261122-6":
+                  version = "1.0"
+              notes = sections.get(version or "")
+              if not notes or "неполный" in (r["name"] or ""):
+                  print("skip", r["tag_name"])
+                  continue
+              subprocess.run(["gh", "release", "edit", r["tag_name"], "--repo", repo,
+                              "--notes", notes + footer], check=True)
+              print("updated", r["tag_name"])
+          PY
       - name: Edit
+        if: ${{ !inputs.changelog }}
         run: |
           if [ "${{ inputs.delete }}" = true ]; then
             gh release delete "$TAG" --repo "$REPO" --yes --cleanup-tag
