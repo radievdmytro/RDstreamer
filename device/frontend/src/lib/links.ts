@@ -1,5 +1,6 @@
+/** The project RDstreamer is based on: its documentation still applies */
 export const WEBSITE = "https://ystreamer.yarosfpv.com";
-export const SOURCE = "https://github.com/YLabs-FPV/YStreamer";
+export const SOURCE = "https://github.com/radievdmytro/RDstreamer";
 export const NEW_ISSUE = `${SOURCE}/issues/new/choose`;
 
 export interface BugReportFields {

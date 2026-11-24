@@ -216,7 +216,7 @@ impl Bus {
 /// Passes the goggles' link through to DJI Fly on an Android phone in a
 /// USB-A port, and DJI Fly's commands back to the goggles. We are the USB
 /// host to the phone and switch it into accessory mode the way the goggles
-/// would, so DJI Fly works next to everything else YStreamer does
+/// would, so DJI Fly works next to everything else RDstreamer does
 pub struct Passthrough {
     enabled: AtomicBool,
     input: Arc<InputState>,

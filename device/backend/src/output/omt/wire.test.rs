@@ -84,6 +84,6 @@ fn nothing_else_is_a_subscription() {
 fn sender_info_names_the_version() {
     assert_eq!(
         sender_info("0.1.0"),
-        r#"<OMTInfo ProductName="YStreamer" Manufacturer="YStreamer" Version="0.1.0" />"#
+        r#"<OMTInfo ProductName="RDstreamer" Manufacturer="RDstreamer" Version="0.1.0" />"#
     );
 }

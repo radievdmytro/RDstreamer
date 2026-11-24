@@ -182,7 +182,7 @@ pub fn reload_timezone() {
     unsafe { tzset() };
 }
 
-/// The zone can also be set outside YStreamer: raspi-config, timedatectl,
+/// The zone can also be set outside RDstreamer: raspi-config, timedatectl,
 /// or Raspberry Pi Imager's options on the first boot. The system's is the
 /// one that counts, so the settings follow it
 pub fn adopt_timezone(store: &crate::settings::SettingsStore) {
@@ -270,7 +270,7 @@ pub fn schedule(action: Action) -> Result<(), String> {
 
 pub async fn logs(lines: u32) -> Result<String, String> {
     if !under_systemd() {
-        return Err("Logs are available once YStreamer runs as a systemd service".into());
+        return Err("Logs are available once RDstreamer runs as a systemd service".into());
     }
     let unit = unit();
     let n = lines.clamp(10, 2000).to_string();

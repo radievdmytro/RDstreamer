@@ -1,28 +1,28 @@
-# Contributing to YStreamer
+# Contributing to RDstreamer
 
 Thanks for your interest - contributions are welcome, whether that's code, docs,
-or simply reporting how YStreamer behaves with your goggles or camera.
+or simply reporting how RDstreamer behaves with your goggles or camera.
 
 ## Ways to help
 
-- **Report your hardware.** Tried YStreamer with your goggles, air unit or a USB
+- **Report your hardware.** Tried RDstreamer with your goggles, air unit or a USB
   camera? Tell us how it went with the
-  [hardware compatibility report](https://github.com/YLabs-FPV/YStreamer/issues/new?template=hardware_report.yml).
+  [hardware compatibility report](https://github.com/radievdmytro/RDstreamer/issues/new?template=hardware_report.yml).
   It's genuinely useful even when everything works - it's how the list of
   supported inputs grows, and the DJI FPV Goggles V1 / V2 in particular still
   need testing.
-- **Report a bug** with the [bug report](https://github.com/YLabs-FPV/YStreamer/issues/new?template=bug_report.yml)
-  template. The lines from the **Logs** page (or `ystreamer logs`) help a lot.
-- **Suggest a feature** with the [feature request](https://github.com/YLabs-FPV/YStreamer/issues/new?template=feature_request.yml)
+- **Report a bug** with the [bug report](https://github.com/radievdmytro/RDstreamer/issues/new?template=bug_report.yml)
+  template. The lines from the **Logs** page (or `sudo ystreamer logs`) help a lot.
+- **Suggest a feature** with the [feature request](https://github.com/radievdmytro/RDstreamer/issues/new?template=feature_request.yml)
   template.
 - **Improve the docs or code** with a pull request (see below).
 
 ## The golden rule: test on real hardware
 
-YStreamer handles live video from real goggles, on a real Raspberry Pi, and a lot
+RDstreamer handles live video from real goggles, on a real Raspberry Pi, and a lot
 of what matters only shows up there: timing, the USB link, the hardware decoder
 and encoder, power. **Any change to how the device behaves must be tested on a
-Raspberry Pi 4 before it's merged.** In your pull request, say how YStreamer was
+Raspberry Pi 4 before it's merged.** In your pull request, say how RDstreamer was
 installed (image or install script), which video source you used, and what you
 verified.
 
@@ -41,7 +41,7 @@ toolchains the project pins (Rust, Node, pnpm). `mise tasks` lists every task.
 
 ### Backend (`device/backend/`)
 
-The YStreamer service, in Rust, with GStreamer for the video. To run it with
+The RDstreamer service, in Rust, with GStreamer for the video. To run it with
 the goggles, the USB-C link and HDMI, it needs a Raspberry Pi:
 
 ```bash

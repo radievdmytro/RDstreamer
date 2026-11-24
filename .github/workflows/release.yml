@@ -200,7 +200,7 @@ jobs:
       - uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ env.TAG }}
-          name: YStreamer ${{ env.TAG }}
+          name: RDstreamer ${{ env.TAG }}
           body_path: notes.md
           generate_release_notes: true
           draft: true

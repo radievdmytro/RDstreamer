@@ -81,7 +81,7 @@
     });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `ystreamer-${info?.hostname ?? "settings"}.json`;
+    a.download = `rdstreamer-${info?.hostname ?? "settings"}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
   }

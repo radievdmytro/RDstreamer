@@ -111,7 +111,7 @@ impl SettingsStore {
         }
         .for_install();
         if is_image() {
-            eprintln!("[settings] running from the YStreamer image");
+            eprintln!("[settings] running from the RDstreamer image");
             // A fresh image has no other way in until someone sets one up
             if fresh {
                 current.wifi.mode = WifiMode::Ap;

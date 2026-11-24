@@ -64,7 +64,7 @@ impl Encoder {
             return Err(format!("VMX couldn't start at {width}x{height}"));
         }
         // libvmx picks few threads for small pictures. One core stays with
-        // the rest of YStreamer: the web interface and the other outputs
+        // the rest of RDstreamer: the web interface and the other outputs
         let threads = std::thread::available_parallelism()
             .map_or(2, |n| n.get())
             .saturating_sub(1)

@@ -139,8 +139,7 @@
     if (!info) return NEW_ISSUE;
     const source = settings.saved?.input.mode;
     const lines: [string, string | null | undefined][] = [
-      // The report goes to YStreamer's tracker, which knows it by that name
-      ["YStreamer (RDstreamer build)", info.version],
+      ["RDstreamer", info.version],
       [
         "Installed from",
         isImage === null

@@ -1,5 +1,5 @@
 name: Hardware compatibility report
-description: Tell us how YStreamer worked with your goggles or camera - even if it all worked.
+description: Tell us how RDstreamer worked with your goggles or camera - even if it all worked.
 title: "[Hardware] <model here>"
 labels: ["hardware", "compatibility-report"]
 body:
@@ -31,7 +31,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: YStreamer version tested
+      label: RDstreamer version tested
       placeholder: "0.1.0"
     validations:
       required: true

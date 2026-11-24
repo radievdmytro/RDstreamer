@@ -37,8 +37,8 @@ body:
   - type: input
     id: version
     attributes:
-      label: YStreamer version
-      description: Shown under System → About, or run `ystreamer version`.
+      label: RDstreamer version
+      description: Shown under System → About, or run `ystreamer version` over SSH.
       placeholder: "0.1.0"
     validations:
       required: true
@@ -92,7 +92,7 @@ body:
     id: logs
     attributes:
       label: Logs
-      description: "**System → About → Copy logs** copies them for you. Or from the Logs page, or `ystreamer logs` over SSH."
+      description: "**System → About → Copy logs** copies them for you. Or from the Logs page, or `sudo ystreamer logs` over SSH."
       render: text
   - type: textarea
     id: extra

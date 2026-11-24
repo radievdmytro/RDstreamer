@@ -39,7 +39,7 @@ fn sends_through_an_installed_runtime() {
         eprintln!("skipping: no NDI runtime");
         return;
     };
-    let sender = runtime::Sender::new(rt, "YStreamer test").unwrap();
+    let sender = runtime::Sender::new(rt, "RDstreamer test").unwrap();
     let r = Running {
         sender: Arc::new(sender),
         limit: Limit {

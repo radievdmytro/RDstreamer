@@ -94,7 +94,7 @@ pub enum Converter {
     /// picture whose reference it never got, which a live link brings now
     /// and then; ffmpeg shows a damaged picture for a moment and goes on.
     /// Its own process keeps anything else that goes wrong away from
-    /// YStreamer: it's started again, and the drone asked for a keyframe
+    /// RDstreamer: it's started again, and the drone asked for a keyframe
     Hardware,
 }
 
@@ -347,7 +347,7 @@ impl Transcoder {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        // Ends with YStreamer, however that goes (Ctrl+C, a crash): one left
+        // Ends with RDstreamer, however that goes (Ctrl+C, a crash): one left
         // running holds the codec, and the next one beside it is the kind
         // of start the codec driver didn't survive. It's the thread that
         // starts ffmpeg whose end counts: the link's, which lasts

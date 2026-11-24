@@ -80,7 +80,7 @@ pub fn metadata(xml: &str) -> Vec<u8> {
 
 /// Who's sending, shown by receivers that display it
 pub fn sender_info(version: &str) -> String {
-    format!(r#"<OMTInfo ProductName="YStreamer" Manufacturer="YStreamer" Version="{version}" />"#)
+    format!(r#"<OMTInfo ProductName="RDstreamer" Manufacturer="RDstreamer" Version="{version}" />"#)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

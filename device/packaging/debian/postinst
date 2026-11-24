@@ -24,7 +24,7 @@ add_boot_settings() {
         echo "$missing"
         echo "$END"
     } >>"$CONFIG"
-    echo "YStreamer: changed $CONFIG; reboot for the goggles link to work." >&2
+    echo "RDstreamer: changed $CONFIG; reboot for the goggles link to work." >&2
 }
 
 if [ "$1" = configure ]; then

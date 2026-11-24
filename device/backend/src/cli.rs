@@ -12,9 +12,9 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 const HELP: &str = "\
 Usage: ystreamer <command>
 
-  status             Whether YStreamer is running and where to open it
-  restart            Restart YStreamer
-  logs [-f]          Show what YStreamer has logged; -f keeps following
+  status             Whether RDstreamer is running and where to open it
+  restart            Restart RDstreamer
+  logs [-f]          Show what RDstreamer has logged; -f keeps following
   password           Set the web interface's password
   password --clear   Remove the web interface's password
   reset [--yes]      Put all settings and the password back to the defaults
@@ -22,7 +22,7 @@ Usage: ystreamer <command>
   help               Show this
 
 restart, password and reset need sudo.
-`ystreamer run` is YStreamer itself, which the system service starts.";
+`ystreamer run` is RDstreamer itself, which the system service starts.";
 
 #[derive(Debug, PartialEq)]
 pub enum Command {
@@ -152,7 +152,7 @@ fn systemctl(action: &str) -> Result<(), String> {
 }
 
 fn status() {
-    println!("YStreamer {VERSION}");
+    println!("RDstreamer {VERSION}");
     let running = running_version();
     match (&running, service_active()) {
         (Some(version), _) if version != VERSION => {
@@ -250,7 +250,7 @@ fn password(clear: bool) -> Result<(), String> {
 
     // The running service only reads the login when told to
     if service_active() && systemctl("reload").is_err() {
-        println!("Saved. Restart YStreamer for it to take effect: sudo ystreamer restart");
+        println!("Saved. Restart RDstreamer for it to take effect: sudo ystreamer restart");
     } else if clear {
         println!("The web interface no longer asks for a password.");
     } else {
@@ -325,9 +325,9 @@ fn reset_settings(confirmed: bool) -> Result<(), String> {
     reset::request(&settings::config_path())?;
     if service_active() {
         systemctl("restart")?;
-        println!("Settings reset. YStreamer is restarting with the defaults.");
+        println!("Settings reset. RDstreamer is restarting with the defaults.");
     } else {
-        println!("YStreamer isn't running; the settings are reset when it next starts.");
+        println!("RDstreamer isn't running; the settings are reset when it next starts.");
     }
     Ok(())
 }

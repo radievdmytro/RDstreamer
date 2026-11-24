@@ -1,6 +1,6 @@
 #!/bin/sh
 # The Argon ONE case's last word as the system goes down: the fan stops, and
 # on power-off the case is told to cut the power once the Pi is down. Does
-# nothing unless YStreamer was running the case. $1 is poweroff, halt,
+# nothing unless RDstreamer was running the case. $1 is poweroff, halt,
 # reboot or kexec
 exec /usr/bin/ystreamer argon-shutdown "$1"

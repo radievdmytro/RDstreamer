@@ -1,8 +1,11 @@
 blank_issues_enabled: false
 contact_links:
   - name: Question or discussion
-    url: https://github.com/YLabs-FPV/YStreamer/discussions
+    url: https://github.com/radievdmytro/RDstreamer/issues
     about: Ask questions, share setups, or discuss ideas here.
-  - name: Documentation
+  - name: What's new
+    url: https://github.com/radievdmytro/RDstreamer/blob/main/CHANGELOG.md
+    about: Every RDstreamer version and what it changed.
+  - name: Documentation (original project)
     url: https://ystreamer.yarosfpv.com/docs
     about: Setup, outputs, guides for OBS, VLC and ground stations, and common issues.

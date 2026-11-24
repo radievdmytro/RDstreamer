@@ -1,5 +1,5 @@
 //! The NDI runtime, opened when it's installed. It's NDI's own library
-//! under NDI's own licence, so YStreamer neither ships it nor links to it:
+//! under NDI's own licence, so RDstreamer neither ships it nor links to it:
 //! the owner installs it, and it's looked up by name at run time
 
 use std::ffi::{CString, c_char, c_int, c_void};

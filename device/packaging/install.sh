@@ -62,24 +62,24 @@ boots_into_desktop() {
 
 desktop_warning() {
     say "WARNING: this system starts a desktop, which keeps the HDMI output for itself."
-    say "YStreamer won't be able to show video on the screen. Use Raspberry Pi OS Lite,"
+    say "RDstreamer won't be able to show video on the screen. Use Raspberry Pi OS Lite,"
     say "or switch the desktop off with: sudo raspi-config (System Options > Boot)."
 }
 
 check_device() {
     arch=$(dpkg --print-architecture 2>/dev/null) || die "This isn't a Debian-based system."
     [ "$arch" = arm64 ] ||
-        die "YStreamer needs the 64-bit Raspberry Pi OS; this system is $arch."
+        die "RDstreamer needs the 64-bit Raspberry Pi OS; this system is $arch."
 
     model=$(tr -d '\0' </proc/device-tree/model 2>/dev/null || true)
     case $model in
     "Raspberry Pi 4 Model B"*) ;;
-    *) confirm "YStreamer is only tested on the Raspberry Pi 4 Model B; this is ${model:-an unknown device}." ;;
+    *) confirm "RDstreamer is only tested on the Raspberry Pi 4 Model B; this is ${model:-an unknown device}." ;;
     esac
 
     codename=$(. /etc/os-release 2>/dev/null && echo "${VERSION_CODENAME:-}")
     [ "$codename" = trixie ] ||
-        confirm "YStreamer is only tested on Raspberry Pi OS 13 (trixie); this is ${codename:-an unknown release}."
+        confirm "RDstreamer is only tested on Raspberry Pi OS 13 (trixie); this is ${codename:-an unknown release}."
 
     [ -f "$BOOT_CONFIG" ] ||
         warn "$BOOT_CONFIG is missing, so the USB-C port can't be set up for the goggles."
@@ -93,7 +93,7 @@ check_device() {
     # Something else on port 80 would stop the web interface from starting
     if ! systemctl is-active --quiet ystreamer 2>/dev/null &&
         ss -Hltn 'sport = :80' 2>/dev/null | grep -q .; then
-        warn "Another program is already listening on port 80, which YStreamer's web interface uses."
+        warn "Another program is already listening on port 80, which RDstreamer's web interface uses."
     fi
 }
 
@@ -135,26 +135,26 @@ approve() {
     say
     case $change in
     install)
-        say "YStreamer $version is ready to install. This will:"
+        say "RDstreamer $version is ready to install. This will:"
         say "  - install the package and what it needs, such as GStreamer"
-        say "  - start YStreamer now and at every boot, using port 80 and the HDMI output"
+        say "  - start RDstreamer now and at every boot, using port 80 and the HDMI output"
         ;;
     reinstall)
-        say "YStreamer $version is already installed. Running this again will:"
+        say "RDstreamer $version is already installed. Running this again will:"
         say "  - reinstall the same version"
         ;;
     update)
-        say "YStreamer $installed is installed. This will:"
+        say "RDstreamer $installed is installed. This will:"
         say "  - update it to $version"
         ;;
     downgrade)
-        say "WARNING: YStreamer $installed is installed, which is newer than the latest"
+        say "WARNING: RDstreamer $installed is installed, which is newer than the latest"
         say "release. This will:"
         say "  - go back to $version"
         ;;
     esac
     if [ "$change" != install ]; then
-        say "  - restart YStreamer, which finishes an open recording and pauses the"
+        say "  - restart RDstreamer, which finishes an open recording and pauses the"
         say "    streams and the HDMI output for a few seconds"
         say "  - keep its settings, login and recordings"
     fi
@@ -163,11 +163,11 @@ approve() {
         say "  - change $BOOT_CONFIG, keeping a copy of the original, by adding:"
         say "$settings"
         say
-        say "WARNING: the USB-C port will be reserved for the goggles until YStreamer is"
+        say "WARNING: the USB-C port will be reserved for the goggles until RDstreamer is"
         say "uninstalled. It can still power the Pi, but nothing else plugged into it will"
         say "work. This takes effect after a reboot."
     else
-        say "  - leave $BOOT_CONFIG as it is: it already has what YStreamer needs"
+        say "  - leave $BOOT_CONFIG as it is: it already has what RDstreamer needs"
     fi
     if boots_into_desktop; then
         say
@@ -206,12 +206,12 @@ version=$1
 url=$2
 signature=$3
 
-say "Downloading YStreamer $version..."
+say "Downloading RDstreamer $version..."
 DEB=$WORK/ystreamer.deb
 curl -fsSL "$url" -o "$DEB" || die "Couldn't download $url."
 verify "$DEB" "$signature" ||
     die "The download's signature doesn't match, so it wasn't installed."
-[ "$(dpkg-deb -f "$DEB" Package)" = ystreamer ] || die "The download isn't YStreamer."
+[ "$(dpkg-deb -f "$DEB" Package)" = ystreamer ] || die "The download isn't RDstreamer."
 say "Signature verified."
 
 # What's on the device already decides between installing, updating,
@@ -237,10 +237,10 @@ if [ -n "$CHECK_ONLY" ]; then
         desktop_warning
     fi
     case $change in
-    install) say "This device is ready for YStreamer $version. Nothing was installed." ;;
-    reinstall) say "YStreamer $version is already installed, the latest version. Nothing was changed." ;;
-    update) say "YStreamer $installed is installed; running this would update it to $version. Nothing was changed." ;;
-    downgrade) say "YStreamer $installed is installed, newer than the latest release ($version). Nothing was changed." ;;
+    install) say "This device is ready for RDstreamer $version. Nothing was installed." ;;
+    reinstall) say "RDstreamer $version is already installed, the latest version. Nothing was changed." ;;
+    update) say "RDstreamer $installed is installed; running this would update it to $version. Nothing was changed." ;;
+    downgrade) say "RDstreamer $installed is installed, newer than the latest release ($version). Nothing was changed." ;;
     esac
     exit 0
 fi
@@ -276,7 +276,7 @@ tries=0
 until answering; do
     tries=$((tries + 1))
     if [ $tries -ge 30 ]; then
-        warn "YStreamer was installed but isn't answering. See: journalctl -u ystreamer"
+        warn "RDstreamer was installed but isn't answering. See: journalctl -u ystreamer"
         exit 1
     fi
     sleep 2
@@ -285,7 +285,7 @@ address=http://$(hostname).local
 [ "$port" = 80 ] || address=$address:$port
 
 say
-say "YStreamer $version is running: $address"
+say "RDstreamer $version is running: $address"
 if [ "$before" != "$(cksum 2>/dev/null <"$BOOT_CONFIG" || true)" ]; then
     say "Reboot before connecting the goggles: the USB-C port was just set up for them."
 fi

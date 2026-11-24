@@ -10,7 +10,7 @@ remove_boot_settings() {
     grep -qF "$BEGIN" "$CONFIG" || return 0
     sed -i "/^$BEGIN\$/,/^$END\$/d" "$CONFIG"
     rm -f "$CONFIG.before-ystreamer"
-    echo "YStreamer: restored $CONFIG; reboot to get the USB-C port back." >&2
+    echo "RDstreamer: restored $CONFIG; reboot to get the USB-C port back." >&2
 }
 
 # The OMT output's mDNS announcement, if it was on

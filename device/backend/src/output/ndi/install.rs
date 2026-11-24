@@ -1,4 +1,4 @@
-//! Fetching and installing NDI's runtime for the owner. YStreamer may not
+//! Fetching and installing NDI's runtime for the owner. RDstreamer may not
 //! hand out NDI's files, so they come straight from NDI or from the owner,
 //! are kept only until the owner accepts or declines NDI's licence, and the
 //! licence shown is the one inside the package
@@ -491,7 +491,7 @@ fn pick_library(listing: &str, arch: &str) -> Result<(String, String), String> {
             .map(|l| l.trim_start_matches("libndi.so."))
             .join(" and ");
         return Err(format!(
-            "This is NDI's runtime {version}, and YStreamer works with versions {usable}"
+            "This is NDI's runtime {version}, and RDstreamer works with versions {usable}"
         ));
     }
     Ok((member, version))

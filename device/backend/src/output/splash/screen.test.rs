@@ -23,13 +23,13 @@ fn access_point() -> (WifiSettings, NetworkStatus) {
         mode: WifiMode::Ap,
         ..Default::default()
     };
-    wifi.ap.ssid = "YStreamer".into();
+    wifi.ap.ssid = "FieldNet".into();
     wifi.ap.password = "flyfast123".into();
     let status = network(
         InterfaceStatus {
             addresses: vec!["10.42.0.1/24".into()],
             role: Some("ap".into()),
-            ssid: Some("YStreamer".into()),
+            ssid: Some("FieldNet".into()),
             ..Default::default()
         },
         Some(InterfaceStatus {
@@ -96,7 +96,7 @@ fn access_point_password_can_be_kept_off_the_screen() {
         assert!(!svg.contains("flyfast123"));
         assert!(!svg.contains("SCAN TO JOIN"));
         // still says which network to join and where to go
-        assert!(svg.contains("YStreamer"));
+        assert!(svg.contains("FieldNet"));
         assert!(svg.contains("10.42.0.1"));
     }
     assert!(
